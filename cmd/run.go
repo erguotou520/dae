@@ -35,6 +35,7 @@ import (
 	"github.com/daeuniverse/dae/common/subscription"
 	"github.com/daeuniverse/dae/config"
 	"github.com/daeuniverse/dae/control"
+	"github.com/daeuniverse/dae/internal/console"
 	"github.com/daeuniverse/dae/pkg/config_parser"
 	"github.com/daeuniverse/dae/pkg/logger"
 	"github.com/mohae/deepcopy"
@@ -64,6 +65,7 @@ func init() {
 	runCmd.PersistentFlags().BoolVar(&disableTimestamp, "disable-timestamp", false, "Disable timestamp.")
 	runCmd.PersistentFlags().BoolVar(&disablePidFile, "disable-pidfile", false, "Not generate /var/run/dae.pid.")
 	runCmd.PersistentFlags().BoolVar(&disableAuthSudo, "disable-sudo", false, "Disable sudo prompt ,may cause startup failure due to insufficient permissions")
+	runCmd.PersistentFlags().StringVar(&consoleBind, "console-bind", "0.0.0.0:8899", "Bind address for built-in console. Empty to disable.")
 	rand.Shuffle(len(CheckNetworkLinks), func(i, j int) {
 		CheckNetworkLinks[i], CheckNetworkLinks[j] = CheckNetworkLinks[j], CheckNetworkLinks[i]
 	})
@@ -77,6 +79,7 @@ var (
 	disableTimestamp  bool
 	disablePidFile    bool
 	disableAuthSudo   bool
+	consoleBind       string
 
 	runCmd = &cobra.Command{
 		Use:   "run",
@@ -128,10 +131,29 @@ func Run(log *logrus.Logger, conf *config.Config, externGeoDataDirs []string) (e
 	// Remove AbortFile at beginning.
 	_ = os.Remove(AbortFile)
 
+	var dashboard *console.Console
+	if consoleBind != "" {
+		dashboard, err = console.New(consoleBind, "dae", cfgFile, "DAE_CONFIG_PATH")
+		if err != nil {
+			return err
+		}
+		dashboard.AttachLogger(log)
+		dashboard.AttachStandardLogger(logrus.StandardLogger())
+	}
+
 	// New ControlPlane.
-	c, err := newControlPlane(log, nil, nil, conf, externGeoDataDirs)
+	c, err := newControlPlane(log, nil, nil, conf, externGeoDataDirs, dashboard)
 	if err != nil {
 		return err
+	}
+
+	if dashboard != nil {
+		consoleCtx, consoleCancel := context.WithCancel(context.Background())
+		defer consoleCancel()
+		dashboard.SetProvider(c)
+		if err := dashboard.Start(consoleCtx); err != nil {
+			return err
+		}
 	}
 
 	var pprofServer *http.Server
@@ -251,6 +273,9 @@ loop:
 			logger.SetLogger(logrus.StandardLogger(), newConf.Global.LogLevel, disableTimestamp, nil)
 			log.SetOutput(oldLogOutput) // FIXME: THIS IS A HACK.
 			logrus.SetOutput(oldLogOutput)
+			if dashboard != nil {
+				dashboard.AttachLogger(log)
+			}
 
 			// New control plane.
 			obj := c.EjectBpf()
@@ -263,16 +288,16 @@ loop:
 			if err := c.StopDNSListener(); err != nil {
 				log.Warnf("[Reload] Failed to stop old DNS listener: %v", err)
 			}
-			
+
 			log.Warnln("[Reload] Load new control plane")
-			newC, err := newControlPlane(log, obj, dnsCache, newConf, externGeoDataDirs)
+			newC, err := newControlPlane(log, obj, dnsCache, newConf, externGeoDataDirs, dashboard)
 			if err != nil {
 				reloadingErr = err
 				log.WithFields(logrus.Fields{
 					"err": err,
 				}).Errorln("[Reload] Failed to reload; try to roll back configuration")
 				// Load last config back.
-				newC, err = newControlPlane(log, obj, dnsCache, conf, externGeoDataDirs)
+				newC, err = newControlPlane(log, obj, dnsCache, conf, externGeoDataDirs, dashboard)
 				if err != nil {
 					sdnotify.Stopping()
 					obj.Close()
@@ -294,6 +319,9 @@ loop:
 			oldC := c
 			c = newC
 			conf = newConf
+			if dashboard != nil {
+				dashboard.SetProvider(c)
+			}
 			reloading = true
 
 			// Ready to close.
@@ -327,7 +355,7 @@ loop:
 	return nil
 }
 
-func newControlPlane(log *logrus.Logger, bpf interface{}, dnsCache map[string]*control.DnsCache, conf *config.Config, externGeoDataDirs []string) (c *control.ControlPlane, err error) {
+func newControlPlane(log *logrus.Logger, bpf interface{}, dnsCache map[string]*control.DnsCache, conf *config.Config, externGeoDataDirs []string, dashboard control.DashboardRecorder) (c *control.ControlPlane, err error) {
 	// Deep copy to prevent modification.
 	conf = deepcopy.Copy(conf).(*config.Config)
 
@@ -451,6 +479,7 @@ func newControlPlane(log *logrus.Logger, bpf interface{}, dnsCache map[string]*c
 		bpf,
 		dnsCache,
 		tagToNodeList,
+		dashboard,
 		conf.Group,
 		&conf.Routing,
 		&conf.Global,

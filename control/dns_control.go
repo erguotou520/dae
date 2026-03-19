@@ -52,6 +52,7 @@ var (
 
 type DnsControllerOption struct {
 	Log                   *logrus.Logger
+	Dashboard             DashboardRecorder
 	CacheAccessCallback   func(cache *DnsCache) (err error)
 	CacheRemoveCallback   func(cache *DnsCache) (err error)
 	NewCache              func(fqdn string, answers []dnsmessage.RR, deadline time.Time, originalDeadline time.Time) (cache *DnsCache, err error)
@@ -68,6 +69,7 @@ type DnsController struct {
 	qtypePrefer uint16
 
 	log                 *logrus.Logger
+	dashboard           DashboardRecorder
 	cacheAccessCallback func(cache *DnsCache) (err error)
 	cacheRemoveCallback func(cache *DnsCache) (err error)
 	newCache            func(fqdn string, answers []dnsmessage.RR, deadline time.Time, originalDeadline time.Time) (cache *DnsCache, err error)
@@ -113,6 +115,7 @@ func NewDnsController(routing *dns.Dns, option *DnsControllerOption) (c *DnsCont
 		qtypePrefer: prefer,
 
 		log:                   option.Log,
+		dashboard:             option.Dashboard,
 		cacheAccessCallback:   option.CacheAccessCallback,
 		cacheRemoveCallback:   option.CacheRemoveCallback,
 		newCache:              option.NewCache,
@@ -340,6 +343,8 @@ type udpRequest struct {
 	src           netip.AddrPort
 	lConn         *net.UDPConn
 	routingResult *bpfRoutingResult
+	qname         string
+	qtype         uint16
 }
 
 type dialArgument struct {
@@ -530,7 +535,7 @@ func (c *DnsController) handleWithResponseWriter_(
 	if err != nil {
 		return fmt.Errorf("pack DNS packet: %w", err)
 	}
-	return c.dialSend(0, req, data, dnsMessage.Id, upstream, needResp)
+	return c.dialSend(0, req, data, dnsMessage.Id, upstream, qname, qtype, needResp)
 }
 
 // sendReject_ send empty answer.
@@ -582,7 +587,7 @@ func (c *DnsController) sendRejectWithResponseWriter_(dnsMessage *dnsmessage.Msg
 	return nil
 }
 
-func (c *DnsController) dialSend(invokingDepth int, req *udpRequest, data []byte, id uint16, upstream *dns.Upstream, needResp bool) (err error) {
+func (c *DnsController) dialSend(invokingDepth int, req *udpRequest, data []byte, id uint16, upstream *dns.Upstream, qname string, qtype uint16, needResp bool) (err error) {
 	if invokingDepth >= MaxDnsLookupDepth {
 		return fmt.Errorf("too deep DNS lookup invoking (depth: %v); there may be infinite loop in your DNS response routing", MaxDnsLookupDepth)
 	}
@@ -613,11 +618,21 @@ func (c *DnsController) dialSend(invokingDepth int, req *udpRequest, data []byte
 	if err != nil {
 		return err
 	}
-
 	networkType := &dialer.NetworkType{
 		L4Proto:   dialArgument.l4proto,
 		IpVersion: dialArgument.ipversion,
 		IsDns:     true,
+	}
+	if c.dashboard != nil {
+		c.dashboard.RecordDNS(DashboardDNSRecord{
+			Time:     time.Now(),
+			QName:    strings.TrimSuffix(strings.ToLower(qname), "."),
+			QType:    QtypeToString(qtype),
+			Network:  networkType.String(),
+			Outbound: dialArgument.bestOutbound.Name,
+			Dialer:   dialArgument.bestDialer.Property().Name,
+			Upstream: upstreamName,
+		})
 	}
 
 	// Dial and send.
@@ -694,7 +709,7 @@ func (c *DnsController) dialSend(invokingDepth int, req *udpRequest, data []byte
 				"next_upstream": nextUpstream.String(),
 			}).Traceln("Change DNS upstream and resend")
 		}
-		return c.dialSend(invokingDepth+1, req, data, id, nextUpstream, needResp)
+		return c.dialSend(invokingDepth+1, req, data, id, nextUpstream, qname, qtype, needResp)
 	}
 	if upstreamIndex.IsReserved() && c.log.IsLevelEnabled(logrus.InfoLevel) {
 		var (

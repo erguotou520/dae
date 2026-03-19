@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DAE Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.cn">
+  <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+  <style>
+    :root{
+      --bg: #f3efe8;
+      --panel: #fffaf1;
+      --panel-2: #f7efe2;
+      --text: #181714;
+      --muted: #6e6558;
+      --faint: #8f8473;
+      --border: #ded2c0;
+      --accent: #385d50;
+      --accent-2: #b85c38;
+      --good: #1f8a70;
+      --warn: #b06d2e;
+      --bad: #a74242;
+      --shadow: 0 14px 40px rgba(25, 20, 12, 0.08);
+      --radius: 18px;
+      --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --sans: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    }
+    [data-theme="dark"]{
+      --bg: #171614;
+      --panel: #22201d;
+      --panel-2: #2b2824;
+      --text: #f4efe8;
+      --muted: #aea392;
+      --faint: #817666;
+      --border: #38342e;
+      --accent: #84b8a1;
+      --accent-2: #e08a57;
+      --good: #6fd6b9;
+      --warn: #f0bf7e;
+      --bad: #e07d7d;
+      --shadow: 0 16px 44px rgba(0, 0, 0, 0.28);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 0% -10%, color-mix(in oklab, var(--panel) 90%, #fff 10%), transparent 65%),
+        radial-gradient(900px 600px at 100% 0%, color-mix(in oklab, var(--panel-2) 92%, #fff 8%), transparent 60%),
+        var(--bg);
+      font-family:var(--sans);
+      overflow:hidden;
+    }
+    .shell{
+      height:100%;
+      display:grid;
+      grid-template-rows:auto 1fr;
+    }
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      padding:18px 24px;
+      border-bottom:1px solid var(--border);
+      background:color-mix(in oklab, var(--panel) 96%, transparent);
+      backdrop-filter:saturate(1.1) blur(12px);
+    }
+    .brand{display:flex;align-items:flex-start;gap:14px}
+    .brand-mark{
+      width:14px;height:42px;border-radius:999px;
+      background:linear-gradient(180deg,var(--accent),var(--accent-2));
+      box-shadow:0 8px 28px color-mix(in oklab, var(--accent) 30%, transparent);
+      margin-top:3px;
+    }
+    .brand h1{margin:0;font-size:18px;line-height:1.1;letter-spacing:-0.02em}
+    .brand p{margin:4px 0 0;color:var(--muted);font-family:var(--mono);font-size:12px}
+    .status-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+    .chip{
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:7px 12px;
+      font-size:12px;
+      font-family:var(--mono);
+      background:var(--panel-2);
+      color:var(--text);
+    }
+    .chip.online{border-color:color-mix(in oklab, var(--good) 40%, var(--border)); color:var(--good)}
+    .chip.degraded{border-color:color-mix(in oklab, var(--warn) 45%, var(--border)); color:var(--warn)}
+    .chip.offline{border-color:color-mix(in oklab, var(--bad) 45%, var(--border)); color:var(--bad)}
+    .theme-switch{display:flex;align-items:center;gap:8px}
+    .icon-btn{
+      width:36px;height:36px;border-radius:50%;
+      border:1px solid var(--border);background:var(--panel);
+      display:grid;place-items:center;cursor:pointer;
+      color:var(--text); transition:transform .15s ease, border-color .15s ease, background .15s ease;
+    }
+    .icon-btn:hover{transform:translateY(-1px);border-color:var(--accent)}
+    .icon-btn.active{background:color-mix(in oklab, var(--accent) 12%, var(--panel)); border-color:color-mix(in oklab, var(--accent) 35%, var(--border));}
+    .icon-btn svg{width:18px;height:18px}
+    .layout{
+      display:grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      gap:1px;
+      background:var(--border);
+      min-height:0;
+    }
+    .sidebar,.main{min-height:0; overflow:auto}
+    .sidebar{
+      padding:18px;
+      background:color-mix(in oklab, var(--panel) 94%, transparent);
+    }
+    .section{
+      margin-bottom:18px;
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .section-head{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:14px 16px;
+      border-bottom:1px solid var(--border);
+      background:linear-gradient(180deg,color-mix(in oklab, var(--panel-2) 92%, transparent), var(--panel));
+    }
+    .section-head h2{margin:0;font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+    .section-body{padding:14px 16px}
+    .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .stat{
+      padding:12px 12px 10px;
+      border:1px solid var(--border);
+      border-radius:14px;
+      background:color-mix(in oklab, var(--panel-2) 82%, var(--panel));
+    }
+    .stat label{display:block;font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em}
+    .stat strong{display:block;margin-top:8px;font-size:24px;line-height:1;font-family:var(--mono);font-weight:700}
+    .kv{display:grid;gap:10px}
+    .kv-row{display:flex;justify-content:space-between;gap:12px;font-family:var(--mono);font-size:12px;color:var(--muted)}
+    .kv-row strong{color:var(--text);font-weight:600}
+    .group-list{display:grid;gap:10px}
+    .group-card{
+      border:1px solid var(--border); border-radius:16px; background:var(--panel);
+      padding:12px 12px 10px;
+    }
+    .group-card.active{border-color:color-mix(in oklab, var(--accent) 42%, var(--border))}
+    .group-title{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .group-title strong{font-size:14px}
+    .tag{
+      display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;
+      background:color-mix(in oklab, var(--accent) 12%, var(--panel)); color:var(--accent);
+      font-size:11px;font-family:var(--mono);white-space:nowrap;
+    }
+    .group-meta{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+    .group-meta span{font-family:var(--mono);font-size:11px;color:var(--muted)}
+    .main{
+      padding:18px;
+      background:color-mix(in oklab, var(--panel) 96%, transparent);
+    }
+    .tabs{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+    .tab{
+      border:1px solid var(--border);
+      background:var(--panel);
+      color:var(--muted);
+      padding:9px 14px;
+      border-radius:999px;
+      cursor:pointer;
+      font:600 13px/1 var(--sans);
+      transition:background .15s ease, color .15s ease, border-color .15s ease;
+    }
+    .tab.active{
+      color:var(--panel);
+      background:var(--accent);
+      border-color:var(--accent);
+    }
+    .panel{
+      display:none;
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .panel.active{display:block}
+    .panel-toolbar{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      padding:14px 16px;border-bottom:1px solid var(--border);
+      background:linear-gradient(180deg,color-mix(in oklab, var(--panel-2) 88%, transparent), var(--panel));
+    }
+    .panel-toolbar .hint{font-size:12px;color:var(--muted);font-family:var(--mono)}
+    .actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .btn{
+      border:1px solid var(--border);
+      background:var(--panel);
+      color:var(--text);
+      padding:9px 12px;
+      border-radius:999px;
+      font:600 12px/1 var(--sans);
+      cursor:pointer;
+    }
+    .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--panel)}
+    .btn.warn{background:var(--accent-2);border-color:var(--accent-2);color:var(--panel)}
+    .search{
+      min-width:240px;
+      border:1px solid var(--border);
+      background:var(--panel);
+      color:var(--text);
+      border-radius:999px;
+      padding:9px 12px;
+      font:500 13px/1 var(--sans);
+      outline:none;
+    }
+    .search::placeholder{color:var(--faint)}
+    .table-wrap{overflow:auto}
+    table{width:100%;border-collapse:collapse}
+    thead th{
+      position:sticky;top:0;z-index:1;
+      background:var(--panel-2);
+      border-bottom:1px solid var(--border);
+      text-align:left;
+      font-size:11px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      padding:12px 16px;
+      color:var(--faint);
+      white-space:nowrap;
+    }
+    tbody td{
+      padding:11px 16px;
+      border-bottom:1px solid color-mix(in oklab, var(--border) 70%, transparent);
+      font-family:var(--mono);
+      font-size:12px;
+      vertical-align:top;
+    }
+    tbody tr:hover{background:color-mix(in oklab, var(--accent) 5%, transparent)}
+    .empty{
+      padding:36px 16px;
+      color:var(--muted);
+      text-align:center;
+      font-family:var(--mono);
+    }
+    .log-list{
+      max-height:calc(100vh - 230px);
+      overflow:auto;
+      background:color-mix(in oklab, #101010 94%, var(--panel) 6%);
+      color:#f4efe8;
+      font-family:var(--mono);
+    }
+    [data-theme="light"] .log-list{
+      background:#171717;
+    }
+    .log-row{
+      display:grid;
+      grid-template-columns: 190px 70px minmax(0,1fr);
+      gap:12px;
+      padding:10px 16px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      align-items:start;
+      font-size:12px;
+    }
+    .log-time{color:#a3a3a3;white-space:nowrap}
+    .log-level{font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+    .level-info{color:#8fc7ff}
+    .level-warn{color:#ffc46f}
+    .level-error{color:#ff8f8f}
+    .level-debug{color:#b1c8b0}
+    .log-msg{white-space:pre-wrap;word-break:break-word}
+    .editor-shell{display:grid;grid-template-rows:auto 1fr}
+    .editor-box{min-height:620px}
+    .editor-error{
+      display:none;
+      padding:12px 16px;
+      border-top:1px solid var(--border);
+      color:var(--warn);
+      font-family:var(--mono);
+      font-size:12px;
+      background:color-mix(in oklab, var(--warn) 8%, var(--panel));
+    }
+    .CodeMirror{
+      height:620px;
+      font-size:13px;
+      font-family:var(--mono);
+      border-top:1px solid var(--border);
+    }
+    .CodeMirror-gutters{background:color-mix(in oklab, var(--panel-2) 86%, var(--panel))}
+    .config-meta{
+      display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+      font-size:12px;color:var(--muted);font-family:var(--mono);
+    }
+    .config-meta strong{color:var(--text)}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .subhead{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint)}
+    @media (max-width: 1120px){
+      body{overflow:auto}
+      .layout{grid-template-columns:1fr}
+      .sidebar,.main{overflow:visible}
+      .editor-box,.CodeMirror{min-height:480px;height:480px}
+      .log-list{max-height:480px}
+    }
+    @media (max-width: 720px){
+      .topbar,.main,.sidebar{padding:14px}
+      .stats,.grid-2{grid-template-columns:1fr}
+      .log-row{grid-template-columns: 1fr; gap:6px}
+      .search{min-width: 0; width: 100%}
+      .panel-toolbar{flex-direction:column;align-items:stretch}
+      .actions{justify-content:flex-start}
+    }
+  </style>
+</head>
+<body>
+<div class="shell" id="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div>
+        <h1>DAE Console</h1>
+        <p id="subtitle">加载中...</p>
+      </div>
+    </div>
+    <div class="status-row">
+      <div class="chip" id="serviceChip">--</div>
+      <div class="chip" id="freshChip">activity age --</div>
+      <div class="theme-switch" aria-label="主题切换">
+        <button class="icon-btn" id="themeAuto" title="自动" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 7.5h16M4 12h16M4 16.5h16"/><circle cx="9" cy="7.5" r="1.4"/><circle cx="14" cy="12" r="1.4"/><circle cx="11" cy="16.5" r="1.4"/></svg>
+        </button>
+        <button class="icon-btn" id="themeLight" title="白天" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="5.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/></svg>
+        </button>
+        <button class="icon-btn" id="themeDark" title="黑夜" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M20.5 14.9A8.7 8.7 0 1 1 9.1 3.5a7.2 7.2 0 1 0 11.4 11.4z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <section class="section">
+        <div class="section-head"><h2>系统概览</h2></div>
+        <div class="section-body">
+          <div class="stats">
+            <div class="stat"><label>总节点</label><strong id="totalNodes">--</strong></div>
+            <div class="stat"><label>分组</label><strong id="totalGroups">--</strong></div>
+          </div>
+        </div>
+      </section>
+      <section class="section">
+        <div class="section-head"><h2>服务状态</h2></div>
+        <div class="section-body kv">
+          <div class="kv-row"><span>ActiveState</span><strong id="activeState">--</strong></div>
+          <div class="kv-row"><span>SubState</span><strong id="subState">--</strong></div>
+          <div class="kv-row"><span>MainPID</span><strong id="mainPid">--</strong></div>
+          <div class="kv-row"><span>Config</span><strong id="configPath">--</strong></div>
+        </div>
+      </section>
+      <section class="section">
+        <div class="section-head"><h2>分组状态</h2></div>
+        <div class="section-body">
+          <div class="group-list" id="groupList"></div>
+        </div>
+      </section>
+    </aside>
+    <main class="main">
+      <div class="tabs">
+        <button class="tab active" data-tab="groups">分组节点</button>
+        <button class="tab" data-tab="nodes">所有节点</button>
+        <button class="tab" data-tab="traffic">流量解析</button>
+        <button class="tab" data-tab="connections">连接记录</button>
+        <button class="tab" data-tab="dns">DNS 解析</button>
+        <button class="tab" data-tab="config">配置文件</button>
+        <button class="tab" data-tab="logs">日志</button>
+      </div>
+
+      <section class="panel active" id="panel-groups">
+        <div class="panel-toolbar">
+          <div class="hint">基于运行时分组快照，显示当前分组下各网络的拨号器与节点</div>
+          <div class="actions"><span class="chip" id="groupsCountChip">--</span></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>分组</th><th>网络</th><th>当前拨号器</th><th>当前延迟</th><th>节点数</th>
+              </tr>
+            </thead>
+            <tbody id="groupsTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-nodes">
+        <div class="panel-toolbar">
+          <div class="hint">按订阅节点去重后展示，支持从头到尾查看所有节点</div>
+          <div class="actions"><span class="chip" id="nodesCountChip">--</span></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>节点名称</th><th>订阅</th><th>最佳延迟</th><th>所属分组</th>
+              </tr>
+            </thead>
+            <tbody id="nodesTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-traffic">
+        <div class="panel-toolbar">
+          <div class="hint">按域名搜索，实时更新，最新在最上面</div>
+          <div class="actions">
+            <input class="search" id="trafficSearch" placeholder="搜索域名，例如 google.com" />
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>域名</th><th>DNS</th><th>分组</th><th>拨号器</th><th>网络</th>
+              </tr>
+            </thead>
+            <tbody id="trafficTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-connections">
+        <div class="panel-toolbar">
+          <div class="hint">连接记录与流量解析共享同一事件源，只是展示角度不同</div>
+          <div class="actions">
+            <input class="search" id="connSearch" placeholder="搜索域名，例如 openai.com" />
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>源地址</th><th>目标地址</th><th>域名</th><th>分组</th><th>拨号器</th><th>网络</th>
+              </tr>
+            </thead>
+            <tbody id="connectionsTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-dns">
+        <div class="panel-toolbar">
+          <div class="hint">DNS 解析按域名搜索，实时倒序显示</div>
+          <div class="actions">
+            <input class="search" id="dnsSearch" placeholder="搜索域名，例如 api.telegram.org" />
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>域名</th><th>类型</th><th>DNS 服务器</th><th>分组</th><th>拨号器</th><th>网络</th>
+              </tr>
+            </thead>
+            <tbody id="dnsTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-config">
+        <div class="editor-shell">
+          <div class="panel-toolbar">
+            <div class="config-meta">
+              <span>路径 <strong id="configMetaPath">--</strong></span>
+              <span>提示 <strong id="configHint">--</strong></span>
+            </div>
+            <div class="actions">
+              <button class="btn warn" id="reloadBtn" type="button">重载配置</button>
+              <button class="btn primary" id="saveBtn" type="button">保存配置</button>
+            </div>
+          </div>
+          <textarea id="configEditor" spellcheck="false"></textarea>
+          <div class="editor-error" id="configError"></div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-logs">
+        <div class="panel-toolbar">
+          <div class="hint">日志按时间倒序显示，最新内容保持在最上方</div>
+          <div class="actions"><span class="chip" id="logsCountChip">--</span></div>
+        </div>
+        <div class="log-list" id="logList"></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/properties/properties.min.js"></script>
+<script>
+(() => {
+  const els = {
+    subtitle: document.getElementById('subtitle'),
+    serviceChip: document.getElementById('serviceChip'),
+    freshChip: document.getElementById('freshChip'),
+    activeState: document.getElementById('activeState'),
+    subState: document.getElementById('subState'),
+    mainPid: document.getElementById('mainPid'),
+    configPath: document.getElementById('configPath'),
+    totalNodes: document.getElementById('totalNodes'),
+    totalGroups: document.getElementById('totalGroups'),
+    groupsCountChip: document.getElementById('groupsCountChip'),
+    nodesCountChip: document.getElementById('nodesCountChip'),
+    logsCountChip: document.getElementById('logsCountChip'),
+    groupList: document.getElementById('groupList'),
+    groupsTable: document.getElementById('groupsTable'),
+    nodesTable: document.getElementById('nodesTable'),
+    trafficTable: document.getElementById('trafficTable'),
+    connectionsTable: document.getElementById('connectionsTable'),
+    dnsTable: document.getElementById('dnsTable'),
+    logList: document.getElementById('logList'),
+    trafficSearch: document.getElementById('trafficSearch'),
+    connSearch: document.getElementById('connSearch'),
+    dnsSearch: document.getElementById('dnsSearch'),
+    configMetaPath: document.getElementById('configMetaPath'),
+    configHint: document.getElementById('configHint'),
+    configError: document.getElementById('configError'),
+    reloadBtn: document.getElementById('reloadBtn'),
+    saveBtn: document.getElementById('saveBtn'),
+    editor: document.getElementById('configEditor'),
+    themeAuto: document.getElementById('themeAuto'),
+    themeLight: document.getElementById('themeLight'),
+    themeDark: document.getElementById('themeDark'),
+  };
+
+  const state = {
+    theme: localStorage.getItem('dae-console-theme') || 'auto',
+    currentTheme: 'light',
+    editorDirty: false,
+    editorLoaded: false,
+    editor: null,
+    summary: { groups: [], nodes: [] },
+    status: {},
+    logs: [],
+    traffic: [],
+    connections: [],
+    dns: [],
+    config: null,
+    filters: { traffic: '', connections: '', dns: '' },
+  };
+
+  function setTheme(mode) {
+    state.theme = mode;
+    localStorage.setItem('dae-console-theme', mode);
+    applyTheme();
+    updateThemeButtons();
+  }
+
+  function applyTheme() {
+    const preferDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    state.currentTheme = state.theme === 'auto' ? (preferDark ? 'dark' : 'light') : state.theme;
+    document.documentElement.dataset.theme = state.currentTheme;
+    if (state.editor) {
+      state.editor.setOption('theme', state.currentTheme === 'dark' ? 'material-darker' : 'default');
+    }
+  }
+
+  function updateThemeButtons() {
+    const map = { auto: els.themeAuto, light: els.themeLight, dark: els.themeDark };
+    Object.entries(map).forEach(([key, btn]) => btn.classList.toggle('active', state.theme === key));
+  }
+
+  function fmtDuration(ms) {
+    if (ms === null || ms === undefined) return '--';
+    const n = Number(ms);
+    if (!Number.isFinite(n) || n <= 0) return '--';
+    if (n < 1000) return `${n}ms`;
+    return `${(n / 1000).toFixed(n < 10000 ? 1 : 0)}s`;
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, ch => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[ch]));
+  }
+
+  function setChip(el, text, cls) {
+    el.textContent = text;
+    el.className = `chip ${cls || ''}`.trim();
+  }
+
+  function rowText(values) {
+    return values.map(v => `<td>${escapeHtml(v ?? '--')}</td>`).join('');
+  }
+
+  function renderGroups() {
+    const groups = state.summary.groups || [];
+    els.totalGroups.textContent = groups.length;
+    els.groupsCountChip.textContent = `${groups.length} groups`;
+    if (!groups.length) {
+      els.groupList.innerHTML = `<div class="empty">暂时没有分组数据</div>`;
+      els.groupsTable.innerHTML = `<tr><td colspan="5" class="empty">没有可显示的分组</td></tr>`;
+      return;
+    }
+
+    els.groupList.innerHTML = groups.map(g => {
+      const net = (g.networks || [])[0] || {};
+      const current = net.current_dialer || '—';
+      const best = net.current_latency_ms ? fmtDuration(net.current_latency_ms) : '--';
+      return `
+        <div class="group-card">
+          <div class="group-title">
+            <strong>${escapeHtml(g.name)}</strong>
+            <span class="tag">${escapeHtml(g.policy || '--')}</span>
+          </div>
+          <div class="group-meta">
+            <span>${escapeHtml(net.network_type || '--')}</span>
+            <span>当前 ${escapeHtml(current)}</span>
+            <span>${escapeHtml(best)}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const rows = [];
+    groups.forEach(g => {
+      (g.networks || []).forEach(net => {
+        const dialers = net.dialers || [];
+        rows.push(`
+          <tr>
+            <td>${escapeHtml(g.name)}</td>
+            <td>${escapeHtml(net.network_type || '--')}</td>
+            <td>${escapeHtml(net.current_dialer || '--')}</td>
+            <td>${escapeHtml(fmtDuration(net.current_latency_ms))}</td>
+            <td>${dialers.length}</td>
+          </tr>
+        `);
+      });
+    });
+    els.groupsTable.innerHTML = rows.join('');
+  }
+
+  function renderNodes() {
+    const nodes = state.summary.nodes || [];
+    els.totalNodes.textContent = state.summary.total_nodes ?? nodes.length;
+    els.nodesCountChip.textContent = `${nodes.length} shown`;
+    if (!nodes.length) {
+      els.nodesTable.innerHTML = `<tr><td colspan="4" class="empty">没有可显示的节点</td></tr>`;
+      return;
+    }
+    els.nodesTable.innerHTML = nodes.map(n => `
+      <tr>
+        <td>${escapeHtml(n.name)}</td>
+        <td>${escapeHtml(n.subscription_tag || '--')}</td>
+        <td>${escapeHtml(fmtDuration(n.best_latency_ms))}</td>
+        <td>${escapeHtml((n.groups || []).join(', '))}</td>
+      </tr>
+    `).join('');
+  }
+
+  function filterList(items, query, accessor) {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(item => accessor(item).toLowerCase().includes(q));
+  }
+
+  function renderTraffic() {
+    const items = filterList(state.traffic || [], state.filters.traffic, x => `${x.domain || ''} ${x.dns || ''} ${x.group || ''} ${x.dialer || ''}`);
+    els.trafficTable.innerHTML = items.length ? items.map(r => `
+      <tr>
+        <td>${escapeHtml(r.domain || '--')}</td>
+        <td>${escapeHtml(r.dns || '--')}</td>
+        <td>${escapeHtml(r.outbound || '--')}</td>
+        <td>${escapeHtml(r.dialer || '--')}</td>
+        <td>${escapeHtml(r.network || '--')}</td>
+      </tr>
+    `).join('') : `<tr><td colspan="5" class="empty">没有匹配的流量记录</td></tr>`;
+  }
+
+  function renderConnections() {
+    const items = filterList(state.connections || [], state.filters.connections, x => `${x.domain || ''} ${x.src || ''} ${x.dst || ''} ${x.outbound || ''} ${x.dialer || ''}`);
+    els.connectionsTable.innerHTML = items.length ? items.map(r => `
+      <tr>
+        <td>${escapeHtml(r.src || '--')}</td>
+        <td>${escapeHtml(r.dst || '--')}</td>
+        <td>${escapeHtml(r.domain || '--')}</td>
+        <td>${escapeHtml(r.outbound || '--')}</td>
+        <td>${escapeHtml(r.dialer || '--')}</td>
+        <td>${escapeHtml(r.network || '--')}</td>
+      </tr>
+    `).join('') : `<tr><td colspan="6" class="empty">没有匹配的连接记录</td></tr>`;
+  }
+
+  function renderDNS() {
+    const items = filterList(state.dns || [], state.filters.dns, x => `${x.qname || ''} ${x.upstream || ''} ${x.dialer || ''}`);
+    els.dnsTable.innerHTML = items.length ? items.map(r => `
+      <tr>
+        <td>${escapeHtml(r.qname || '--')}</td>
+        <td>${escapeHtml(r.qtype || '--')}</td>
+        <td>${escapeHtml(r.upstream || '--')}</td>
+        <td>${escapeHtml(r.outbound || '--')}</td>
+        <td>${escapeHtml(r.dialer || '--')}</td>
+        <td>${escapeHtml(r.network || '--')}</td>
+      </tr>
+    `).join('') : `<tr><td colspan="6" class="empty">没有匹配的 DNS 记录</td></tr>`;
+  }
+
+  function renderLogs() {
+    const logs = state.logs || [];
+    els.logsCountChip.textContent = `${logs.length} logs`;
+    els.logList.innerHTML = logs.length ? logs.map(log => `
+      <div class="log-row">
+        <div class="log-time">${new Date(log.time).toLocaleString()}</div>
+        <div class="log-level level-${escapeHtml(log.level || 'info')}">${escapeHtml(log.level || 'info')}</div>
+        <div class="log-msg">${escapeHtml(log.message || '')}</div>
+      </div>
+    `).join('') : `<div class="empty">没有日志</div>`;
+    els.logList.scrollTop = 0;
+  }
+
+  function initEditor() {
+    if (state.editorLoaded || !window.CodeMirror) return;
+    state.editor = window.CodeMirror.fromTextArea(els.editor, {
+      lineNumbers: true,
+      lineWrapping: true,
+      theme: state.currentTheme === 'dark' ? 'material-darker' : 'default',
+      indentUnit: 2,
+      tabSize: 2,
+      matchBrackets: true,
+      viewportMargin: Infinity,
+      mode: 'properties',
+    });
+    state.editor.on('change', () => {
+      if (!state.editorDirty) state.editorDirty = true;
+    });
+    state.editorLoaded = true;
+  }
+
+  function setConfigError(msg) {
+    els.configError.style.display = msg ? 'block' : 'none';
+    els.configError.textContent = msg || '';
+  }
+
+  async function api(url, options) {
+    const res = await fetch(url, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    });
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { raw: text };
+    }
+  }
+
+  async function refreshStatus() {
+    const data = await api('/api/status');
+    state.status = data;
+    const chipClass = data.status || 'offline';
+    setChip(els.serviceChip, data.status ? data.status.toUpperCase() : 'OFFLINE', chipClass);
+    const age = data.activity_age ?? '--';
+    els.freshChip.textContent = age >= 0 ? `activity age ${age}s` : 'activity age --';
+    els.activeState.textContent = data.systemd?.active_state || '--';
+    els.subState.textContent = data.systemd?.sub_state || '--';
+    els.mainPid.textContent = data.systemd?.main_pid || '--';
+    els.configPath.textContent = data.config_path || '--';
+    els.subtitle.textContent = `${data.config_path || 'config unknown'} · ${data.systemd?.unit_file_state || 'systemd unknown'}`;
+  }
+
+  async function refreshSummary() {
+    const data = await api('/api/summary');
+    state.summary = data;
+    renderGroups();
+    renderNodes();
+  }
+
+  async function refreshTraffic() {
+    const q = state.filters.traffic;
+    const data = await api(`/api/traffic?limit=200&q=${encodeURIComponent(q)}`);
+    state.traffic = data.records || [];
+    renderTraffic();
+  }
+
+  async function refreshConnections() {
+    const q = state.filters.connections;
+    const data = await api(`/api/connections?limit=200&q=${encodeURIComponent(q)}`);
+    state.connections = data.connections || [];
+    renderConnections();
+  }
+
+  async function refreshDNS() {
+    const q = state.filters.dns;
+    const data = await api(`/api/dns?limit=200&q=${encodeURIComponent(q)}`);
+    state.dns = data.queries || [];
+    renderDNS();
+  }
+
+  async function refreshLogs() {
+    const data = await api('/api/logs?limit=250');
+    state.logs = data.logs || [];
+    renderLogs();
+  }
+
+  async function loadConfig() {
+    const data = await api('/api/config');
+    state.config = data;
+    els.configMetaPath.textContent = data.path || '--';
+    els.configHint.textContent = data.hint || data.error || '--';
+    if (data.error) {
+      setConfigError(`${data.error}${data.hint ? ' · ' + data.hint : ''}`);
+      return;
+    }
+    setConfigError('');
+    initEditor();
+    if (state.editor) {
+      if (!state.editorDirty) {
+        state.editor.setValue(data.content || '');
+        state.editorDirty = false;
+      }
+      state.editor.refresh();
+    } else {
+      els.editor.value = data.content || '';
+    }
+  }
+
+  function currentConfigValue() {
+    return state.editor ? state.editor.getValue() : els.editor.value;
+  }
+
+  async function saveConfig() {
+    const content = currentConfigValue();
+    const data = await api('/api/config', {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    });
+    if (data.ok) {
+      state.editorDirty = false;
+      setConfigError('');
+      await loadConfig();
+      return;
+    }
+    setConfigError(data.error || '保存失败');
+  }
+
+  async function reloadConfig() {
+    const data = await api('/api/reload', { method: 'POST', body: '{}' });
+    if (!data.ok) setConfigError(data.error || '重载失败');
+  }
+
+  function setTab(name) {
+    document.querySelectorAll('.tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === name));
+    document.querySelectorAll('.panel').forEach(panel => panel.classList.toggle('active', panel.id === `panel-${name}`));
+    if (name === 'config') {
+      if (state.config && !state.editorDirty) {
+        loadConfig();
+      }
+      if (state.editor) state.editor.refresh();
+    }
+  }
+
+  function bindEvents() {
+    document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
+    els.trafficSearch.addEventListener('input', e => { state.filters.traffic = e.target.value; refreshTraffic(); });
+    els.connSearch.addEventListener('input', e => { state.filters.connections = e.target.value; refreshConnections(); });
+    els.dnsSearch.addEventListener('input', e => { state.filters.dns = e.target.value; refreshDNS(); });
+    els.saveBtn.addEventListener('click', saveConfig);
+    els.reloadBtn.addEventListener('click', reloadConfig);
+    els.themeAuto.addEventListener('click', () => setTheme('auto'));
+    els.themeLight.addEventListener('click', () => setTheme('light'));
+    els.themeDark.addEventListener('click', () => setTheme('dark'));
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (state.theme === 'auto') applyTheme();
+    });
+  }
+
+  async function refreshAll() {
+    await Promise.all([
+      refreshStatus(),
+      refreshSummary(),
+      refreshTraffic(),
+      refreshConnections(),
+      refreshDNS(),
+      refreshLogs(),
+    ]);
+  }
+
+  let lastLogId = 0;
+  async function pollLogs() {
+    const data = await api('/api/logs?limit=80');
+    const logs = data.logs || [];
+    if (!logs.length) return;
+    if (lastLogId && logs[0].id === lastLogId) return;
+    lastLogId = logs[0].id;
+    state.logs = logs;
+    renderLogs();
+    await Promise.all([refreshStatus(), refreshSummary(), refreshTraffic(), refreshConnections(), refreshDNS()]);
+  }
+
+  async function bootstrap() {
+    bindEvents();
+    applyTheme();
+    updateThemeButtons();
+    await refreshAll();
+    await loadConfig();
+    lastLogId = state.logs[0]?.id || 0;
+    setInterval(() => {
+      pollLogs().catch(console.error);
+    }, 2000);
+    setInterval(() => {
+      if (state.editorDirty || document.getElementById('panel-config').classList.contains('active')) {
+        return;
+      }
+      loadConfig().catch(console.error);
+    }, 8000);
+  }
+
+  bootstrap().catch(err => {
+    console.error(err);
+    els.subtitle.textContent = '控制台加载失败';
+    setChip(els.serviceChip, 'ERROR', 'offline');
+    setConfigError(err?.message || String(err));
+  });
+})();
+</script>
+</body>
+</html>

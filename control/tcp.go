@@ -147,6 +147,19 @@ func (c *ControlPlane) RouteDialTcp(p *RouteDialParam) (conn netproxy.Conn, err 
 	if err != nil {
 		return nil, fmt.Errorf("failed to select dialer from group %v (%v): %w", outbound.Name, networkType.String(), err)
 	}
+	c.recordFlow(DashboardFlowRecord{
+		Time:     time.Now(),
+		Domain:   domain,
+		Src:      RefineSourceToShow(src, dst.Addr()),
+		Dst:      dialTarget,
+		Network:  networkType.String(),
+		Outbound: outbound.Name,
+		Dialer:   d.Property().Name,
+		Policy:   string(outbound.GetSelectionPolicy()),
+		PID:      fmt.Sprintf("%d", routingResult.Pid),
+		PName:    ProcessName2String(routingResult.Pname[:]),
+		Mac:      Mac2String(routingResult.Mac[:]),
+	})
 
 	if c.log.IsLevelEnabled(logrus.InfoLevel) {
 		c.log.WithFields(logrus.Fields{

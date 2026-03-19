@@ -53,8 +53,10 @@ type ControlPlane struct {
 	listenIp   string
 
 	// TODO: add mutex?
-	outbounds     []*outbound.DialerGroup
-	inConnections sync.Map
+	outbounds         []*outbound.DialerGroup
+	subscriptionNodes map[string][]string
+	dashboard         DashboardRecorder
+	inConnections     sync.Map
 
 	dnsController    *DnsController
 	dnsListener      *DNSListener
@@ -85,6 +87,7 @@ func NewControlPlane(
 	_bpf interface{},
 	dnsCache map[string]*DnsCache,
 	tagToNodeList map[string][]string,
+	dashboard DashboardRecorder,
 	groups []config.Group,
 	routingA *config.Routing,
 	global *config.Global,
@@ -384,6 +387,8 @@ func NewControlPlane(
 		deferFuncs:        deferFuncs,
 		listenIp:          "0.0.0.0",
 		outbounds:         outbounds,
+		subscriptionNodes: tagToNodeList,
+		dashboard:         dashboard,
 		dnsController:     nil,
 		onceNetworkReady:  sync.Once{},
 		dialMode:          dialMode,
@@ -422,7 +427,8 @@ func NewControlPlane(
 		return nil, err
 	}
 	if plane.dnsController, err = NewDnsController(dnsUpstream, &DnsControllerOption{
-		Log: log,
+		Log:       log,
+		Dashboard: dashboard,
 		CacheAccessCallback: func(cache *DnsCache) (err error) {
 			// Write mappings into eBPF map:
 			// IP record (from dns lookup) -> domain routing

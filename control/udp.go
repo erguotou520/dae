@@ -87,6 +87,19 @@ func (c *ControlPlane) handlePkt(lConn *net.UDPConn, data []byte, src, pktDst, r
 			}
 			c.log.WithFields(fields).Tracef("%v <-> %v", RefineSourceToShow(realSrc, realDst.Addr()), dialTarget)
 		}
+		c.recordFlow(DashboardFlowRecord{
+			Time:     time.Now(),
+			Domain:   domain,
+			Src:      RefineSourceToShow(realSrc, realDst.Addr()),
+			Dst:      dialTarget,
+			Network:  "udp(fp)",
+			Outbound: ue.Outbound.Name,
+			Dialer:   ue.Dialer.Property().Name,
+			Policy:   string(ue.Outbound.GetSelectionPolicy()),
+			PID:      fmt.Sprintf("%d", routingResult.Pid),
+			PName:    ProcessName2String(routingResult.Pname[:]),
+			Mac:      Mac2String(routingResult.Mac[:]),
+		})
 
 		_, err = ue.WriteTo(data, dialTarget)
 		if err != nil {
@@ -248,6 +261,21 @@ getNew:
 			dialerForNew, _, err := outbound.Select(networkType, strictIpVersion)
 			if err != nil {
 				return nil, fmt.Errorf("failed to select dialer from group %v (%v, dns?:%v,from: %v): %w", outbound.Name, networkType.StringWithoutDns(), isDns, realSrc.String(), err)
+			}
+			if !isDns {
+				c.recordFlow(DashboardFlowRecord{
+					Time:     time.Now(),
+					Domain:   domain,
+					Src:      RefineSourceToShow(realSrc, realDst.Addr()),
+					Dst:      dialTarget,
+					Network:  networkType.StringWithoutDns(),
+					Outbound: outbound.Name,
+					Dialer:   dialerForNew.Property().Name,
+					Policy:   string(outbound.GetSelectionPolicy()),
+					PID:      fmt.Sprintf("%d", routingResult.Pid),
+					PName:    ProcessName2String(routingResult.Pname[:]),
+					Mac:      Mac2String(routingResult.Mac[:]),
+				})
 			}
 			return &DialOption{
 				Target:        dialTarget,
