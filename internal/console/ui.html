@@ -1072,7 +1072,11 @@
       if (!val) return;
       localStorage.setItem('dae-console-token', val);
       hideTokenModal();
-      doBootstrap().catch(err => { console.error(err); els.subtitle.textContent = '控制台加载失败'; });
+      doBootstrap().catch(err => {
+        if (err?.message === 'unauthorized') return;
+        console.error(err);
+        els.subtitle.textContent = '控制台加载失败';
+      });
     });
     document.getElementById('tokenInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('tokenSubmit').click();
