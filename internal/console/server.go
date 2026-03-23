@@ -8,15 +8,18 @@ package console
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,6 +35,17 @@ var uiFS embed.FS
 
 const DefaultServiceName = "dae"
 
+const tokenAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+func generateToken() string {
+	b := make([]byte, 36)
+	for i := range b {
+		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(tokenAlphabet))))
+		b[i] = tokenAlphabet[n.Int64()]
+	}
+	return string(b)
+}
+
 type Provider interface {
 	DashboardSnapshot() control.DashboardSnapshot
 }
@@ -44,6 +58,8 @@ type Console struct {
 
 	store *LogStore
 	page  []byte
+
+	token    string
 
 	mu       sync.RWMutex
 	provider Provider
@@ -66,6 +82,7 @@ func New(addr, serviceName, configPath, configEnv string) (*Console, error) {
 		configEnv:   configEnv,
 		store:       NewLogStore(4000, 1200),
 		page:        page,
+		token:       generateToken(),
 	}, nil
 }
 
@@ -111,12 +128,14 @@ func (c *Console) Start(ctx context.Context) error {
 	if c.addr == "" {
 		return nil
 	}
+	logrus.Infof("[Console] Access token: %s", c.token)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", c.handleIndex)
 	mux.HandleFunc("/api/status", c.handleStatus)
 	mux.HandleFunc("/api/summary", c.handleSummary)
 	mux.HandleFunc("/api/groups", c.handleGroups)
 	mux.HandleFunc("/api/nodes", c.handleNodes)
+	mux.HandleFunc("/api/subscriptions", c.handleSubscriptions)
 	mux.HandleFunc("/api/traffic", c.handleTraffic)
 	mux.HandleFunc("/api/connections", c.handleConnections)
 	mux.HandleFunc("/api/dns", c.handleDNS)
@@ -126,7 +145,7 @@ func (c *Console) Start(ctx context.Context) error {
 
 	srv := &http.Server{
 		Addr:              c.addr,
-		Handler:           c.withCORS(mux),
+		Handler:           c.withToken(c.withCORS(mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	c.server = srv
@@ -151,11 +170,30 @@ func (c *Console) Start(ctx context.Context) error {
 func (c *Console) withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (c *Console) withToken(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" || r.Method == http.MethodOptions {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			auth := r.Header.Get("Authorization")
+			if auth != "Bearer "+c.token {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusUnauthorized)
+				_ = json.NewEncoder(w).Encode(map[string]any{"error": "unauthorized"})
+				return
+			}
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -175,6 +213,8 @@ func (c *Console) handleStatus(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			status = "degraded"
 		}
+	} else if systemd.ActiveState == "reloading" {
+		status = "reloading"
 	}
 	c.renderJSON(w, map[string]any{
 		"status":             status,
@@ -220,6 +260,47 @@ func (c *Console) handleNodes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.renderJSON(w, map[string]any{"nodes": snapshot.Nodes})
+}
+
+func (c *Console) handleSubscriptions(w http.ResponseWriter, r *http.Request) {
+	snapshot, ok := c.providerSnapshot()
+	if !ok {
+		c.renderJSON(w, map[string]any{"subscriptions": []any{}})
+		return
+	}
+
+	// Group nodes by subscription tag
+	subMap := make(map[string][]control.DashboardNodeSnapshot)
+	directNodes := []control.DashboardNodeSnapshot{}
+
+	for _, node := range snapshot.Nodes {
+		if node.SubscriptionTag == "" {
+			directNodes = append(directNodes, node)
+		} else {
+			subMap[node.SubscriptionTag] = append(subMap[node.SubscriptionTag], node)
+		}
+	}
+
+	subscriptions := make([]map[string]any, 0, len(subMap))
+	for tag, nodes := range subMap {
+		subscriptions = append(subscriptions, map[string]any{
+			"tag":        tag,
+			"node_count": len(nodes),
+			"nodes":      nodes,
+		})
+	}
+
+	// Sort subscriptions by tag name
+	sort.SliceStable(subscriptions, func(i, j int) bool {
+		return subscriptions[i]["tag"].(string) < subscriptions[j]["tag"].(string)
+	})
+
+	c.renderJSON(w, map[string]any{
+		"subscriptions": subscriptions,
+		"direct_nodes":  directNodes,
+		"total_subs":    len(subscriptions),
+		"total_direct":  len(directNodes),
+	})
 }
 
 func (c *Console) handleTraffic(w http.ResponseWriter, r *http.Request) {
@@ -308,6 +389,22 @@ func (c *Console) handleConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Console) handleReload(w http.ResponseWriter, r *http.Request) {
+	path, _ := c.configPathWithHint()
+	exe, err := os.Executable()
+	if err != nil {
+		exe = os.Args[0]
+	}
+	vctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	out, verr := exec.CommandContext(vctx, exe, "validate", "--config", path).CombinedOutput()
+	if verr != nil {
+		c.renderJSON(w, map[string]any{
+			"ok":     false,
+			"error":  "配置验证失败",
+			"detail": strings.TrimSpace(string(out)),
+		})
+		return
+	}
 	if err := reloadSelf(); err != nil {
 		c.renderJSON(w, map[string]any{"ok": false, "error": err.Error()})
 		return
