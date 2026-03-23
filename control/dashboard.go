@@ -84,6 +84,7 @@ func (c *ControlPlane) DashboardSnapshot() DashboardSnapshot {
 					node = &DashboardNodeSnapshot{
 						Name:            dialer.Name,
 						SubscriptionTag: dialer.SubscriptionTag,
+						Groups:          []string{},
 					}
 					nodeMap[key] = node
 				}
@@ -104,6 +105,7 @@ func (c *ControlPlane) DashboardSnapshot() DashboardSnapshot {
 				node = &DashboardNodeSnapshot{
 					Name:            name,
 					SubscriptionTag: subtag,
+					Groups:          []string{},
 				}
 				nodeMap[key] = node
 			}
