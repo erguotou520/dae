@@ -59,7 +59,7 @@ type Console struct {
 	store *LogStore
 	page  []byte
 
-	token    string
+	token string
 
 	mu       sync.RWMutex
 	provider Provider

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(open:*)",
+      "Bash(open -a Docker)",
+      "Bash(docker info:*)"
+    ]
+  }
+}
