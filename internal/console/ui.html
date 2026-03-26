@@ -83,13 +83,7 @@
       background:color-mix(in oklab, var(--panel) 96%, transparent);
       backdrop-filter:saturate(1.1) blur(12px);
     }
-    .brand{display:flex;align-items:flex-start;gap:14px}
-    .brand-mark{
-      width:14px;height:42px;border-radius:999px;
-      background:linear-gradient(180deg,var(--accent),var(--accent-2));
-      box-shadow:0 8px 28px color-mix(in oklab, var(--accent) 30%, transparent);
-      margin-top:3px;
-    }
+    .brand{display:flex;align-items:flex-start;gap:10px}
     .brand h1{margin:0;font-size:18px;line-height:1.1;letter-spacing:-0.02em}
     .brand p{margin:4px 0 0;color:var(--muted);font-family:var(--mono);font-size:12px}
     .status-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
@@ -117,7 +111,7 @@
     .icon-btn svg{width:18px;height:18px}
     .layout{
       display:grid;
-      grid-template-columns: 320px minmax(0, 1fr);
+      grid-template-columns: minmax(360px, 380px) minmax(0, 1fr);
       gap:1px;
       background:var(--border);
       min-height:0;
@@ -154,22 +148,85 @@
     .stat strong{display:block;margin-top:8px;font-size:24px;line-height:1;font-family:var(--mono);font-weight:700}
     .kv{display:grid;gap:10px}
     .kv-row{display:flex;justify-content:space-between;gap:12px;font-family:var(--mono);font-size:12px;color:var(--muted)}
-    .kv-row strong{color:var(--text);font-weight:600}
+    .kv-row strong{
+      color:var(--text);
+      font-weight:600;
+      max-width:66%;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      text-align:right;
+    }
     .group-list{display:grid;gap:10px}
     .group-card{
+      position:relative;
       border:1px solid var(--border); border-radius:16px; background:var(--panel);
-      padding:12px 12px 10px;
+      padding:14px 14px 12px 14px;
     }
     .group-card.active{border-color:color-mix(in oklab, var(--accent) 42%, var(--border))}
-    .group-title{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .group-title{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-left:58px}
     .group-title strong{font-size:14px}
     .tag{
       display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;
       background:color-mix(in oklab, var(--accent) 12%, var(--panel)); color:var(--accent);
       font-size:11px;font-family:var(--mono);white-space:nowrap;
     }
-    .group-meta{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
-    .group-meta span{font-family:var(--mono);font-size:11px;color:var(--muted)}
+    .group-type-badge{
+      position:absolute;top:12px;left:12px;
+      background:color-mix(in oklab, var(--accent-2) 15%, var(--panel));
+      color:var(--accent-2);
+    }
+    .group-meta{
+      margin-top:10px;
+      display:flex;
+      align-items:center;
+      flex-wrap:wrap;
+      gap:8px;
+      padding-left:58px;
+    }
+    .group-meta span:not(.latency){display:flex;align-items:center;font-family:var(--mono);font-size:11px;color:var(--muted)}
+    .group-meta .latency{font-weight:700}
+    .group-meta .latency.latency-good{color:var(--good)}
+    .group-meta .latency.latency-warn{color:var(--warn)}
+    .group-meta .latency.latency-bad{color:var(--bad)}
+    .latency-good{color:var(--good)}
+    .latency-warn{color:var(--warn)}
+    .latency-bad{color:var(--bad)}
+    .group-accordion{
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:var(--panel);
+      overflow:hidden;
+    }
+    .group-accordion + .group-accordion{margin-top:10px}
+    .group-accordion-head{
+      width:100%;
+      border:0;
+      background:linear-gradient(180deg,color-mix(in oklab, var(--panel-2) 88%, transparent), var(--panel));
+      padding:14px 14px 12px;
+      cursor:pointer;
+      text-align:left;
+      color:inherit;
+    }
+    .group-accordion-body{display:none;padding:12px 14px 14px}
+    .group-accordion.expanded .group-accordion-body{display:grid;gap:10px}
+    .group-network{
+      border:1px solid color-mix(in oklab, var(--border) 85%, transparent);
+      border-radius:14px;
+      background:color-mix(in oklab, var(--panel-2) 50%, var(--panel));
+      padding:12px;
+    }
+    .group-network-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+    .group-network-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--muted)}
+    .group-node-list{display:grid;gap:8px}
+    .group-node-item{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      padding:10px 12px;border-radius:12px;
+      background:color-mix(in oklab, var(--panel) 82%, var(--panel-2));
+      font-family:var(--mono);font-size:12px;
+    }
+    .group-node-left{display:flex;align-items:center;gap:8px;min-width:0}
+    .group-node-left .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .main{
       padding:18px;
       background:color-mix(in oklab, var(--panel) 96%, transparent);
@@ -283,6 +340,8 @@
     .level-error{color:#f87171}
     .level-debug{color:#b1c8b0}
     .log-msg{white-space:pre-wrap;word-break:break-word}
+    .log-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .log-search{min-width:220px}
     .editor-shell{display:grid;grid-template-rows:auto 1fr}
     .editor-box{min-height:620px}
     .editor-error{
@@ -309,6 +368,31 @@
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .subhead{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint)}
     .subs-list{display:grid;gap:12px}
+    .config-list{display:grid;gap:14px}
+    .config-block{
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:var(--panel);
+      overflow:hidden;
+    }
+    .config-block-head{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      padding:14px 16px;
+      border-bottom:1px solid var(--border);
+      background:linear-gradient(180deg,color-mix(in oklab, var(--panel-2) 88%, transparent), var(--panel));
+    }
+    .config-block-head strong{font-size:14px}
+    .config-block-body{display:grid;gap:10px;padding:14px 16px}
+    .config-entry{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      padding:12px 14px;border-radius:12px;
+      background:color-mix(in oklab, var(--panel-2) 58%, transparent);
+      font-family:var(--mono);font-size:12px;
+    }
+    .config-entry .left{min-width:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .config-entry .raw{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+    .config-entry .source{padding:2px 8px;border-radius:999px;background:color-mix(in oklab, var(--accent) 14%, var(--panel));color:var(--accent);font-size:10px}
+    .config-entry .tag{background:color-mix(in oklab, var(--accent-2) 12%, var(--panel));color:var(--accent-2)}
     .subs-card{
       border:1px solid var(--border);border-radius:16px;background:var(--panel);
       overflow:hidden;
@@ -409,7 +493,6 @@
 <div class="shell" id="app">
   <header class="topbar">
     <div class="brand">
-      <div class="brand-mark"></div>
       <div>
         <h1>DAE Console</h1>
         <p id="subtitle">加载中...</p>
@@ -449,50 +532,40 @@
           <div class="kv-row"><span>SubState</span><strong id="subState">--</strong></div>
           <div class="kv-row"><span>MainPID</span><strong id="mainPid">--</strong></div>
           <div class="kv-row"><span>Config</span><strong id="configPath">--</strong></div>
+          <div class="kv-row"><span>Config Hint</span><strong id="configHintSidebar">--</strong></div>
         </div>
       </section>
       <section class="section">
         <div class="section-head"><h2>分组状态</h2></div>
         <div class="section-body">
-          <div class="group-list" id="groupList"></div>
+          <div class="group-list" id="sidebarGroupList"></div>
         </div>
       </section>
     </aside>
     <main class="main">
       <div class="tabs">
-        <button class="tab active" data-tab="groups">分组</button>
-        <button class="tab" data-tab="nodes">节点</button>
-        <button class="tab" data-tab="traffic">流量</button>
+        <button class="tab active" data-tab="subscriptions">订阅/节点</button>
+        <button class="tab" data-tab="groups">分组节点</button>
         <button class="tab" data-tab="dns">DNS</button>
+        <button class="tab" data-tab="traffic">流量</button>
         <button class="tab" data-tab="config">配置</button>
         <button class="tab" data-tab="logs">日志</button>
       </div>
 
-      <section class="panel active" id="panel-groups">
+      <section class="panel active" id="panel-subscriptions">
         <div class="panel-toolbar">
-          <div class="hint">基于运行时分组快照，显示当前分组下各网络的拨号器与节点</div>
-          <div class="actions"><span class="chip" id="groupsCountChip">--</span></div>
+          <div class="hint">配置文件中的 subscription / node，按原始配置展示</div>
+          <div class="actions"><span class="chip" id="subsCountChip">--</span></div>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>分组</th><th>网络</th><th>策略</th><th>当前拨号器</th><th>当前延迟</th><th>在线/总数</th>
-              </tr>
-            </thead>
-            <tbody id="groupsTable"></tbody>
-          </table>
-        </div>
+        <div id="subscriptionsList"></div>
       </section>
 
-      <section class="panel" id="panel-subscriptions" style="display:none"></section>
-
-      <section class="panel" id="panel-nodes">
+      <section class="panel" id="panel-groups">
         <div class="panel-toolbar">
-          <div class="hint">按分组聚合的节点列表，每个节点显示名称、类型、延迟和所属分组</div>
-          <div class="actions"><span class="chip" id="nodesCountChip">--</span></div>
+          <div class="hint">分组运行时快照，accordion 展开查看组内节点</div>
+          <div class="actions"><span class="chip" id="groupsCountChip">--</span></div>
         </div>
-        <div id="nodesList"></div>
+        <div id="groupList" class="group-list"></div>
       </section>
 
       <section class="panel" id="panel-traffic">
@@ -514,7 +587,18 @@
         </div>
       </section>
 
-      <section class="panel" id="panel-connections" style="display:none"></section>
+      <section class="panel" id="panel-connections" style="display:none">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>源地址</th><th>目标地址</th><th>域名</th><th>分组</th><th>拨号器</th><th>策略</th><th>网络</th>
+              </tr>
+            </thead>
+            <tbody id="connectionsTable"></tbody>
+          </table>
+        </div>
+      </section>
 
       <section class="panel" id="panel-dns">
         <div class="panel-toolbar">
@@ -538,10 +622,7 @@
       <section class="panel" id="panel-config">
         <div class="editor-shell">
           <div class="panel-toolbar">
-            <div class="config-meta">
-              <span>路径 <strong id="configMetaPath">--</strong></span>
-              <span>提示 <strong id="configHint">--</strong></span>
-            </div>
+            <div class="hint">编辑后可直接保存，重载前会先 validate</div>
             <div class="actions">
               <button class="btn warn" id="reloadBtn" type="button">重载配置</button>
               <button class="btn primary" id="saveBtn" type="button">保存配置</button>
@@ -554,7 +635,10 @@
 
       <section class="panel" id="panel-logs">
         <div class="panel-toolbar">
-          <div class="hint">日志按时间倒序显示，最新内容保持在最上方</div>
+          <div class="log-toolbar">
+            <div class="hint">日志追加推送，支持按关键字和级别搜索</div>
+            <input class="search log-search" id="logSearch" placeholder="搜索日志，例如 error" />
+          </div>
           <div class="actions"><span class="chip" id="logsCountChip">--</span></div>
         </div>
         <div class="log-list" id="logList"></div>
@@ -590,25 +674,22 @@
     subState: document.getElementById('subState'),
     mainPid: document.getElementById('mainPid'),
     configPath: document.getElementById('configPath'),
+    configHintSidebar: document.getElementById('configHintSidebar'),
     totalNodes: document.getElementById('totalNodes'),
     totalGroups: document.getElementById('totalGroups'),
     groupsCountChip: document.getElementById('groupsCountChip'),
-    nodesCountChip: document.getElementById('nodesCountChip'),
     subsCountChip: document.getElementById('subsCountChip'),
     logsCountChip: document.getElementById('logsCountChip'),
     subscriptionsList: document.getElementById('subscriptionsList'),
+    sidebarGroupList: document.getElementById('sidebarGroupList'),
     groupList: document.getElementById('groupList'),
-    groupsTable: document.getElementById('groupsTable'),
-    nodesTable: document.getElementById('nodesTable'),
     trafficTable: document.getElementById('trafficTable'),
     connectionsTable: document.getElementById('connectionsTable'),
     dnsTable: document.getElementById('dnsTable'),
     logList: document.getElementById('logList'),
     trafficSearch: document.getElementById('trafficSearch'),
-    connSearch: document.getElementById('connSearch'),
     dnsSearch: document.getElementById('dnsSearch'),
-    configMetaPath: document.getElementById('configMetaPath'),
-    configHint: document.getElementById('configHint'),
+    logSearch: document.getElementById('logSearch'),
     configError: document.getElementById('configError'),
     reloadBtn: document.getElementById('reloadBtn'),
     saveBtn: document.getElementById('saveBtn'),
@@ -624,15 +705,18 @@
     editorDirty: false,
     editorLoaded: false,
     editor: null,
-    summary: { groups: [], nodes: [] },
     status: {},
-    subscriptions: [],
+    summary: { groups: [], nodes: [] },
+    config: {},
     logs: [],
     traffic: [],
     connections: [],
     dns: [],
-    config: null,
-    filters: { traffic: '', connections: '', dns: '' },
+    filters: { traffic: '', dns: '', logs: '' },
+    ws: null,
+    reconnectTimer: null,
+    wsShouldReconnect: true,
+    suppressEditorDirty: false,
   };
 
   function setTheme(mode) {
@@ -656,278 +740,60 @@
     Object.entries(map).forEach(([key, btn]) => btn.classList.toggle('active', state.theme === key));
   }
 
-  function fmtDuration(ms) {
-    if (ms === null || ms === undefined) return '--';
-    const n = Number(ms);
-    if (!Number.isFinite(n) || n <= 0) return '--';
-    if (n < 1000) return `${n}ms`;
-    return `${(n / 1000).toFixed(n < 10000 ? 1 : 0)}s`;
-  }
-
   function escapeHtml(s) {
-    return String(s || '').replace(/[&<>"']/g, ch => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[ch]));
-  }
-
-  function formatNodeName(name) {
-    if (!name) return '--';
-    // If it's a URL, try to extract a meaningful name
-    if (name.includes('://')) {
-      try {
-        const url = new URL(name);
-        const protocol = url.protocol.replace(':', '');
-        // For vless, vmess, trojan, etc., the name is often in the fragment
-        if (url.hash) {
-          const fragment = decodeURIComponent(url.hash.slice(1));
-          if (fragment && fragment.length < 50 && !fragment.includes('?')) {
-            return fragment;
-          }
-        }
-        // Use hostname:port as fallback
-        const port = url.port || ({https:443,http:80,socks5:1080}[protocol] || '');
-        return `${url.protocol.replace(':', '')}://${url.hostname}${port ? ':' + port : ''}`;
-      } catch {
-        // If URL parsing fails, just truncate
-        return name.length > 60 ? name.slice(0, 60) + '...' : name;
-      }
-    }
-    return name.length > 60 ? name.slice(0, 60) + '...' : name;
+    return String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   }
 
   function setChip(el, text, cls) {
+    if (!el) return;
     el.textContent = text;
     el.className = `chip ${cls || ''}`.trim();
   }
 
-  function rowText(values) {
-    return values.map(v => `<td>${escapeHtml(v ?? '--')}</td>`).join('');
+  function formatLatency(ms) {
+    if (ms === null || ms === undefined || ms === '') return '--';
+    const n = Number(ms);
+    if (!Number.isFinite(n) || n < 0) return '--';
+    return `${Math.round(n)}ms`;
   }
 
-  function renderGroups() {
-    const groups = state.summary.groups || [];
-    els.totalGroups.textContent = groups.length;
-    els.groupsCountChip.textContent = `${groups.length} groups`;
-    if (!groups.length) {
-      els.groupList.innerHTML = `<div class="empty">暂时没有分组数据</div>`;
-      els.groupsTable.innerHTML = `<tr><td colspan="6" class="empty">没有可显示的分组</td></tr>`;
-      return;
-    }
-
-    els.groupList.innerHTML = groups.map(g => {
-      const net = (g.networks || [])[0] || {};
-      const current = net.current_dialer || '—';
-      const best = net.current_latency_ms ? fmtDuration(net.current_latency_ms) : '--';
-      const aliveCount = (net.dialers || []).filter(d => d.alive).length;
-      const totalCount = (net.dialers || []).length;
-      return `
-        <div class="group-card">
-          <div class="group-title">
-            <strong>${escapeHtml(g.name)}</strong>
-            <span class="tag">${escapeHtml(net.selection_policy || g.policy || '--')}</span>
-          </div>
-          <div class="group-meta">
-            <span>${escapeHtml(net.network_type || '--')}</span>
-            <span>当前 ${escapeHtml(current)}</span>
-            <span>${escapeHtml(best)}</span>
-            <span>${aliveCount}/${totalCount} 在线</span>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    const rows = [];
-    groups.forEach(g => {
-      (g.networks || []).forEach(net => {
-        const dialers = net.dialers || [];
-        const aliveCount = dialers.filter(d => d.alive).length;
-        rows.push(`
-          <tr>
-            <td>${escapeHtml(g.name)}</td>
-            <td>${escapeHtml(net.network_type || '--')}</td>
-            <td>${escapeHtml(net.selection_policy || g.policy || '--')}</td>
-            <td>${escapeHtml(net.current_dialer || '--')}</td>
-            <td>${escapeHtml(fmtDuration(net.current_latency_ms))}</td>
-            <td>${aliveCount}/${dialers.length}</td>
-          </tr>
-        `);
-      });
-    });
-    els.groupsTable.innerHTML = rows.join('');
+  function latencyClass(ms) {
+    const n = Number(ms);
+    if (!Number.isFinite(n) || n < 0) return '';
+    if (n < 200) return 'latency-good';
+    if (n < 1000) return 'latency-warn';
+    return 'latency-bad';
   }
 
-  function renderNodes() {
-    const nodes = state.summary.nodes || [];
-    els.totalNodes.textContent = state.summary.total_nodes ?? nodes.length;
-    els.nodesCountChip.textContent = `${nodes.length} 个节点`;
-    if (!nodes.length) {
-      document.getElementById('nodesList').innerHTML = `<div class="empty">没有可显示的节点</div>`;
-      return;
-    }
+  function latencySpan(ms) {
+    const text = formatLatency(ms);
+    const cls = latencyClass(ms);
+    return `<span class="latency ${cls}">${escapeHtml(text)}</span>`;
+  }
 
-    // Group nodes by their groups
-    const groupMap = {};
-    const ungrouped = [];
-    
-    nodes.forEach(node => {
-      if (!node.groups || node.groups.length === 0) {
-        ungrouped.push(node);
-      } else {
-        node.groups.forEach(groupName => {
-          if (!groupMap[groupName]) {
-            groupMap[groupName] = [];
-          }
-          groupMap[groupName].push(node);
-        });
+  function normalizeLevel(level) {
+    const v = String(level || 'info').toLowerCase();
+    if (v === 'warning') return 'warn';
+    return v;
+  }
+
+  function formatNodeName(name) {
+    if (!name) return '--';
+    if (name.includes('://')) {
+      try {
+        const url = new URL(name);
+        if (url.hash) {
+          const fragment = decodeURIComponent(url.hash.slice(1));
+          if (fragment && fragment.length < 50 && !fragment.includes('?')) return fragment;
+        }
+        const protocol = url.protocol.replace(':', '');
+        const port = url.port || ({ https: '443', http: '80', socks5: '1080' }[protocol] || '');
+        return `${protocol}://${url.hostname}${port ? `:${port}` : ''}`;
+      } catch {
+        return name.length > 60 ? `${name.slice(0, 60)}...` : name;
       }
-    });
-
-    let html = '';
-    
-    // Sort group names
-    const groupNames = Object.keys(groupMap).sort();
-    
-    // Render grouped nodes
-    groupNames.forEach(groupName => {
-      const groupNodes = groupMap[groupName];
-      html += `
-        <div class="node-group">
-          <div class="node-group-header">
-            <strong>${escapeHtml(groupName)}</strong>
-            <span class="tag">${groupNodes.length} 节点</span>
-          </div>
-          <div class="node-group-list">
-            ${groupNodes.map(n => `
-              <div class="node-item">
-                <div class="node-info">
-                  <span class="node-name" title="${escapeHtml(n.name)}">${escapeHtml(formatNodeName(n.name))}</span>
-                  <span class="node-type">${n.subscription_tag ? escapeHtml(n.subscription_tag) : '直接'}</span>
-                </div>
-                <div class="node-stats">
-                  <span class="latency ${n.best_latency_ms > 0 ? 'online' : 'offline'}">
-                    ${fmtDuration(n.best_latency_ms)}
-                  </span>
-                  <span class="groups">${(n.groups || []).map(g => `<tag>${escapeHtml(g)}</tag>`).join('')}</span>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    });
-
-    // Render ungrouped nodes
-    if (ungrouped.length > 0) {
-      html += `
-        <div class="node-group">
-          <div class="node-group-header">
-            <strong>未分配</strong>
-            <span class="tag">${ungrouped.length} 节点</span>
-          </div>
-          <div class="node-group-list">
-            ${ungrouped.map(n => `
-              <div class="node-item">
-                <div class="node-info">
-                  <span class="node-name" title="${escapeHtml(n.name)}">${escapeHtml(formatNodeName(n.name))}</span>
-                  <span class="node-type">${n.subscription_tag ? escapeHtml(n.subscription_tag) : '直接'}</span>
-                </div>
-                <div class="node-stats">
-                  <span class="latency ${n.best_latency_ms > 0 ? 'online' : 'offline'}">
-                    ${fmtDuration(n.best_latency_ms)}
-                  </span>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
     }
-
-    document.getElementById('nodesList').innerHTML = `<div class="nodes-container">${html}</div>`;
-  }
-
-  function renderSubscriptions() {
-    const subs = state.subscriptions || [];
-    const directNodes = subs.direct_nodes || [];
-    const subscriptions = subs.subscriptions || [];
-    const total = subs.total_subs || 0;
-    const totalDirect = subs.total_direct || 0;
-    els.subsCountChip.textContent = `${total} subs, ${totalDirect} direct`;
-
-    if (total === 0 && totalDirect === 0) {
-      els.subscriptionsList.innerHTML = `<div class="empty">没有订阅或直接节点</div>`;
-      return;
-    }
-
-    let html = '';
-
-    // Render subscriptions
-    subscriptions.forEach(sub => {
-      const tag = escapeHtml(sub.tag || 'Unknown');
-      const nodes = sub.nodes || [];
-      const nodeCount = sub.node_count || nodes.length;
-
-      html += `
-        <div class="subs-card">
-          <div class="subs-header" onclick="this.classList.toggle('expanded')">
-            <div class="subs-title">
-              <strong>${tag}</strong>
-              <span class="tag">${nodeCount} nodes</span>
-            </div>
-            <div class="subs-expand">
-              <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-            </div>
-          </div>
-          <div class="subs-body">
-            <div class="subs-node-list">
-              ${nodes.map(n => `
-                <div class="subs-node">
-                  <div class="subs-node-name">
-                    <span class="name" title="${escapeHtml(n.name)}">${escapeHtml(formatNodeName(n.name))}</span>
-                    ${(n.groups || []).map(g => `<span class="tag">${escapeHtml(g)}</span>`).join('')}
-                  </div>
-                  <div class="subs-node-stats">
-                    <span class="${n.best_latency_ms > 0 ? 'online' : 'offline'}">
-                      ${fmtDuration(n.best_latency_ms)}
-                    </span>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        </div>
-      `;
-    });
-
-    // Render direct nodes
-    if (directNodes.length > 0) {
-      html += `
-        <div class="direct-section">
-          <div class="direct-title">直接节点 (${directNodes.length})</div>
-          <div class="subs-node-list">
-            ${directNodes.map(n => `
-              <div class="subs-node">
-                <div class="subs-node-name">
-                  <span class="name" title="${escapeHtml(n.name)}">${escapeHtml(formatNodeName(n.name))}</span>
-                  ${(n.groups || []).map(g => `<span class="tag">${escapeHtml(g)}</span>`).join('')}
-                </div>
-                <div class="subs-node-stats">
-                  <span class="${n.best_latency_ms > 0 ? 'online' : 'offline'}">
-                    ${fmtDuration(n.best_latency_ms)}
-                  </span>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    }
-
-    els.subscriptionsList.innerHTML = `<div class="subs-list">${html}</div>`;
-  }
-
-  function truncateMiddle(str, maxLen) {
-    if (str.length <= maxLen) return str;
-    const half = Math.floor((maxLen - 3) / 2);
-    return str.slice(0, half) + '...' + str.slice(-half);
+    return name.length > 60 ? `${name.slice(0, 60)}...` : name;
   }
 
   function filterList(items, query, accessor) {
@@ -936,60 +802,26 @@
     return items.filter(item => accessor(item).toLowerCase().includes(q));
   }
 
-  function renderTraffic() {
-    const items = filterList(state.traffic || [], state.filters.traffic, x => `${x.domain || ''} ${x.dns || ''} ${x.group || ''} ${x.dialer || ''} ${x.policy || ''}`);
-    els.trafficTable.innerHTML = items.length ? items.map(r => `
-      <tr>
-        <td>${escapeHtml(r.domain || '--')}</td>
-        <td>${escapeHtml(r.dns || '--')}</td>
-        <td>${escapeHtml(r.outbound || '--')}</td>
-        <td>${escapeHtml(r.dialer || '--')}</td>
-        <td>${escapeHtml(r.policy || '--')}</td>
-        <td>${escapeHtml(r.network || '--')}</td>
-      </tr>
-    `).join('') : `<tr><td colspan="6" class="empty">没有匹配的流量记录</td></tr>`;
+  function prependUnique(list, item, key = 'id', limit = 250) {
+    const id = key === 'time' ? JSON.stringify(item || {}) : item && item[key];
+    if (id !== undefined && id !== null) {
+      if (list.some(v => (key === 'time' ? JSON.stringify(v || {}) : (v && v[key])) === id)) return list;
+    }
+    const next = [item, ...list];
+    return next.length > limit ? next.slice(0, limit) : next;
   }
 
-  function renderConnections() {
-    const items = filterList(state.connections || [], state.filters.connections, x => `${x.domain || ''} ${x.src || ''} ${x.dst || ''} ${x.outbound || ''} ${x.dialer || ''} ${x.policy || ''}`);
-    els.connectionsTable.innerHTML = items.length ? items.map(r => `
-      <tr>
-        <td>${escapeHtml(r.src || '--')}</td>
-        <td>${escapeHtml(r.dst || '--')}</td>
-        <td>${escapeHtml(r.domain || '--')}</td>
-        <td>${escapeHtml(r.outbound || '--')}</td>
-        <td>${escapeHtml(r.dialer || '--')}</td>
-        <td>${escapeHtml(r.policy || '--')}</td>
-        <td>${escapeHtml(r.network || '--')}</td>
-      </tr>
-    `).join('') : `<tr><td colspan="7" class="empty">没有匹配的连接记录</td></tr>`;
+  function replaceOrPrepend(list, item, key = 'id', limit = 250) {
+    const id = item && item[key];
+    if (id === undefined || id === null) return prependUnique(list, item, key, limit);
+    const next = list.filter(v => !(v && v[key] === id));
+    next.unshift(item);
+    return next.length > limit ? next.slice(0, limit) : next;
   }
 
-  function renderDNS() {
-    const items = filterList(state.dns || [], state.filters.dns, x => `${x.qname || ''} ${x.upstream || ''} ${x.dialer || ''}`);
-    els.dnsTable.innerHTML = items.length ? items.map(r => `
-      <tr>
-        <td>${escapeHtml(r.qname || '--')}</td>
-        <td>${escapeHtml(r.qtype || '--')}</td>
-        <td>${escapeHtml(r.upstream || '--')}</td>
-        <td>${escapeHtml(r.outbound || '--')}</td>
-        <td>${escapeHtml(r.dialer || '--')}</td>
-        <td>${escapeHtml(r.network || '--')}</td>
-      </tr>
-    `).join('') : `<tr><td colspan="6" class="empty">没有匹配的 DNS 记录</td></tr>`;
-  }
-
-  function renderLogs() {
-    const logs = state.logs || [];
-    els.logsCountChip.textContent = `${logs.length} logs`;
-    els.logList.innerHTML = logs.length ? logs.map(log => `
-      <div class="log-row">
-        <div class="log-time">${new Date(log.time).toLocaleString()}</div>
-        <div class="log-level level-${escapeHtml(log.level || 'info')}">${escapeHtml(log.level || 'info')}</div>
-        <div class="log-msg">${escapeHtml(log.message || '')}</div>
-      </div>
-    `).join('') : `<div class="empty">没有日志</div>`;
-    els.logList.scrollTop = 0;
+  function setConfigError(msg) {
+    els.configError.style.display = msg ? 'block' : 'none';
+    els.configError.textContent = msg || '';
   }
 
   function initEditor() {
@@ -1005,22 +837,268 @@
       mode: 'properties',
     });
     state.editor.on('change', () => {
+      if (state.suppressEditorDirty) return;
       if (!state.editorDirty) state.editorDirty = true;
     });
     state.editorLoaded = true;
   }
 
-  function setConfigError(msg) {
-    els.configError.style.display = msg ? 'block' : 'none';
-    els.configError.textContent = msg || '';
+  function currentConfigValue() {
+    return state.editor ? state.editor.getValue() : els.editor.value;
+  }
+
+  function renderStatus(data = state.status) {
+    state.status = data || {};
+    const chipClass = data.status || 'offline';
+    setChip(els.serviceChip, data.status ? data.status.toUpperCase() : 'OFFLINE', chipClass);
+    const age = data.activity_age ?? -1;
+    els.freshChip.textContent = age >= 0 ? `activity age ${age}s` : 'activity age --';
+    els.activeState.textContent = data.systemd?.active_state || '--';
+    els.subState.textContent = data.systemd?.sub_state || '--';
+    els.mainPid.textContent = data.systemd?.main_pid || '--';
+    els.configPath.textContent = data.config_path || '--';
+    els.configHintSidebar.textContent = data.config_hint || state.config.hint || state.config.error || '--';
+    els.subtitle.textContent = `${data.config_path || 'config unknown'} · ${data.systemd?.unit_file_state || 'systemd unknown'}`;
+  }
+
+  function renderConfigPanel() {
+    const cfg = state.config || {};
+    els.configHintSidebar.textContent = cfg.hint || cfg.error || '--';
+    if (cfg.error) {
+      setConfigError(`${cfg.error}${cfg.hint ? ` · ${cfg.hint}` : ''}`);
+    } else {
+      setConfigError('');
+    }
+    initEditor();
+    if (!state.editorDirty) {
+      if (state.editor) {
+        state.suppressEditorDirty = true;
+        state.editor.setValue(cfg.content || '');
+        state.suppressEditorDirty = false;
+        state.editor.refresh();
+      } else {
+        els.editor.value = cfg.content || '';
+      }
+      state.editorDirty = false;
+    }
+  }
+
+  function renderSubscriptions() {
+    const cfg = state.config || {};
+    const subscriptions = cfg.subscriptions || [];
+    const nodes = cfg.nodes || [];
+    els.subsCountChip.textContent = `${subscriptions.length} 订阅 · ${nodes.length} 节点`;
+    if (!subscriptions.length && !nodes.length) {
+      els.subscriptionsList.innerHTML = `<div class="empty">没有可显示的订阅或节点配置</div>`;
+      return;
+    }
+
+    const renderEntry = entry => `
+      <div class="config-entry">
+        <div class="left">
+          <span class="source">${escapeHtml(entry.source || '--')}</span>
+          ${entry.tag ? `<span class="tag">${escapeHtml(entry.tag)}</span>` : ''}
+          <span class="raw" title="${escapeHtml(entry.display || entry.value || '')}">${escapeHtml(entry.display || entry.value || '--')}</span>
+        </div>
+        <span class="tag">${escapeHtml(entry.tag ? 'tagged' : 'direct')}</span>
+      </div>
+    `;
+
+    els.subscriptionsList.innerHTML = `
+      <div class="config-list">
+        <section class="config-block">
+          <div class="config-block-head">
+            <strong>subscription</strong>
+            <span class="tag">${subscriptions.length}</span>
+          </div>
+          <div class="config-block-body">
+            ${subscriptions.length ? subscriptions.map(renderEntry).join('') : `<div class="empty">没有 subscription 配置</div>`}
+          </div>
+        </section>
+        <section class="config-block">
+          <div class="config-block-head">
+            <strong>node</strong>
+            <span class="tag">${nodes.length}</span>
+          </div>
+          <div class="config-block-body">
+            ${nodes.length ? nodes.map(renderEntry).join('') : `<div class="empty">没有 node 配置</div>`}
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderSidebarGroups() {
+    const groups = state.summary.groups || [];
+    els.totalGroups.textContent = groups.length;
+    if (!groups.length) {
+      els.sidebarGroupList.innerHTML = `<div class="empty">暂时没有分组数据</div>`;
+      return;
+    }
+    els.sidebarGroupList.innerHTML = groups.map(g => {
+      const net = (g.networks || [])[0] || {};
+      const current = net.current_dialer || '--';
+      return `
+        <div class="group-card">
+          <span class="tag group-type-badge">${escapeHtml(net.network_type || '--')}</span>
+          <div class="group-title">
+            <strong>${escapeHtml(g.name || '--')}</strong>
+            <span class="tag">${escapeHtml(net.selection_policy || g.policy || '--')}</span>
+          </div>
+          <div class="group-meta">
+            <span>${escapeHtml(current)}</span>
+            ${latencySpan(net.current_latency_ms)}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderGroups() {
+    const groups = state.summary.groups || [];
+    const nodes = state.summary.nodes || [];
+    els.totalNodes.textContent = state.summary.total_nodes ?? nodes.length;
+    els.groupsCountChip.textContent = `${groups.length} groups`;
+    renderSidebarGroups();
+    if (!groups.length) {
+      els.groupList.innerHTML = `<div class="empty">没有可显示的分组</div>`;
+      return;
+    }
+
+    els.groupList.innerHTML = groups.map((g, index) => {
+      const networks = g.networks || [];
+      const first = networks[0] || {};
+      return `
+        <div class="group-accordion${index === 0 ? ' expanded' : ''}">
+          <button class="group-accordion-head" type="button" onclick="toggleGroupAccordion(this)">
+            <span class="tag group-type-badge">${escapeHtml(first.network_type || '--')}</span>
+            <div class="group-title">
+              <strong>${escapeHtml(g.name || '--')}</strong>
+              <span class="tag">${escapeHtml(first.selection_policy || g.policy || '--')}</span>
+            </div>
+            <div class="group-meta">
+              <span>${escapeHtml(first.current_dialer || '--')}</span>
+              ${latencySpan(first.current_latency_ms)}
+            </div>
+          </button>
+          <div class="group-accordion-body">
+            ${networks.map(net => {
+              const dialers = net.dialers || [];
+              return `
+                <div class="group-network">
+                  <div class="group-network-head">
+                    <div class="group-network-meta">
+                      <span class="tag">${escapeHtml(net.network_type || '--')}</span>
+                      <span>策略 ${escapeHtml(net.selection_policy || g.policy || '--')}</span>
+                      <span>${escapeHtml(net.current_dialer || '--')}</span>
+                    </div>
+                    <div class="group-network-meta">${latencySpan(net.current_latency_ms)}</div>
+                  </div>
+                  <div class="group-node-list">
+                    ${dialers.length ? dialers.map(d => `
+                      <div class="group-node-item">
+                        <div class="group-node-left">
+                          <span class="name" title="${escapeHtml(d.name || '')}">${escapeHtml(formatNodeName(d.name))}</span>
+                          ${d.subscription_tag ? `<span class="tag">${escapeHtml(d.subscription_tag)}</span>` : '<span class="tag">direct</span>'}
+                        </div>
+                        <div class="group-network-meta">
+                          <span class="${d.alive ? 'latency-good' : 'latency-bad'}">${d.alive ? 'online' : 'offline'}</span>
+                          ${latencySpan(d.latency_ms > 0 ? d.latency_ms : d.moving_average_ms)}
+                        </div>
+                      </div>
+                    `).join('') : `<div class="empty">没有节点</div>`}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderTraffic() {
+    const items = filterList(state.traffic || [], state.filters.traffic, x => `${x.domain || ''} ${x.dns || ''} ${x.group || ''} ${x.dialer || ''} ${x.policy || ''} ${x.network || ''}`);
+    els.trafficTable.innerHTML = items.length ? items.map(r => `
+      <tr>
+        <td>${escapeHtml(r.domain || '--')}</td>
+        <td>${escapeHtml(r.dns || '--')}</td>
+        <td>${escapeHtml(r.outbound || '--')}</td>
+        <td>${escapeHtml(r.dialer || '--')}</td>
+        <td>${escapeHtml(r.policy || '--')}</td>
+        <td>${escapeHtml(r.network || '--')}</td>
+      </tr>
+    `).join('') : `<tr><td colspan="6" class="empty">没有匹配的流量记录</td></tr>`;
+  }
+
+  function renderConnections() {
+    const items = state.connections || [];
+    els.connectionsTable.innerHTML = items.length ? items.map(r => `
+      <tr>
+        <td>${escapeHtml(r.src || '--')}</td>
+        <td>${escapeHtml(r.dst || '--')}</td>
+        <td>${escapeHtml(r.domain || '--')}</td>
+        <td>${escapeHtml(r.outbound || '--')}</td>
+        <td>${escapeHtml(r.dialer || '--')}</td>
+        <td>${escapeHtml(r.policy || '--')}</td>
+        <td>${escapeHtml(r.network || '--')}</td>
+      </tr>
+    `).join('') : `<tr><td colspan="7" class="empty">没有连接记录</td></tr>`;
+  }
+
+  function renderDNS() {
+    const items = filterList(state.dns || [], state.filters.dns, x => `${x.qname || ''} ${x.upstream || ''} ${x.dialer || ''} ${x.outbound || ''}`);
+    els.dnsTable.innerHTML = items.length ? items.map(r => `
+      <tr>
+        <td>${escapeHtml(r.qname || '--')}</td>
+        <td>${escapeHtml(r.qtype || '--')}</td>
+        <td>${escapeHtml(r.upstream || '--')}</td>
+        <td>${escapeHtml(r.outbound || '--')}</td>
+        <td>${escapeHtml(r.dialer || '--')}</td>
+        <td>${escapeHtml(r.network || '--')}</td>
+      </tr>
+    `).join('') : `<tr><td colspan="6" class="empty">没有匹配的 DNS 记录</td></tr>`;
+  }
+
+  function renderLogs() {
+    const q = state.filters.logs;
+    const logs = filterList(state.logs || [], q, log => {
+      const fields = log.fields ? Object.values(log.fields).join(' ') : '';
+      return `${log.level || ''} ${log.message || ''} ${fields}`;
+    });
+    els.logsCountChip.textContent = `${logs.length} logs`;
+    els.logList.innerHTML = logs.length ? logs.map(log => {
+      const level = normalizeLevel(log.level);
+      return `
+        <div class="log-row">
+          <div class="log-time">${new Date(log.time).toLocaleString()}</div>
+          <div class="log-level level-${escapeHtml(level)}">${escapeHtml(level)}</div>
+          <div class="log-msg">${escapeHtml(log.message || '')}</div>
+        </div>
+      `;
+    }).join('') : `<div class="empty">没有日志</div>`;
+  }
+
+  function renderAll() {
+    renderStatus();
+    renderSubscriptions();
+    renderGroups();
+    renderTraffic();
+    renderConnections();
+    renderDNS();
+    renderLogs();
+    renderConfigPanel();
   }
 
   async function api(url, options = {}) {
     const token = localStorage.getItem('dae-console-token') || '';
     const hdrs = { 'Content-Type': 'application/json' };
-    if (token) hdrs['Authorization'] = 'Bearer ' + token;
+    if (token) hdrs.Authorization = `Bearer ${token}`;
     const res = await fetch(url, { headers: hdrs, ...options });
-    if (res.status === 401) { showTokenModal(true); throw new Error('unauthorized'); }
+    if (res.status === 401) {
+      showTokenModal(true);
+      throw new Error('unauthorized');
+    }
     const text = await res.text();
     try {
       return JSON.parse(text);
@@ -1029,125 +1107,52 @@
     }
   }
 
-  async function refreshStatus() {
-    const data = await api('/api/status');
-    state.status = data;
-    const chipClass = data.status || 'offline';
-    setChip(els.serviceChip, data.status ? data.status.toUpperCase() : 'OFFLINE', chipClass);
-    const age = data.activity_age ?? '--';
-    els.freshChip.textContent = age >= 0 ? `activity age ${age}s` : 'activity age --';
-    els.activeState.textContent = data.systemd?.active_state || '--';
-    els.subState.textContent = data.systemd?.sub_state || '--';
-    els.mainPid.textContent = data.systemd?.main_pid || '--';
-    els.configPath.textContent = data.config_path || '--';
-    els.subtitle.textContent = `${data.config_path || 'config unknown'} · ${data.systemd?.unit_file_state || 'systemd unknown'}`;
-  }
-
-  async function refreshSummary() {
-    const data = await api('/api/summary');
-    state.summary = data;
-    renderGroups();
-    renderNodes();
-  }
-
-  async function refreshSubscriptions() {
-    const data = await api('/api/subscriptions');
-    state.subscriptions = data;
-    renderSubscriptions();
-  }
-
-  async function refreshTraffic() {
-    const q = state.filters.traffic;
-    const data = await api(`/api/traffic?limit=200&q=${encodeURIComponent(q)}`);
-    state.traffic = data.records || [];
-    renderTraffic();
-  }
-
-  async function refreshConnections() {
-    const q = state.filters.connections;
-    const data = await api(`/api/connections?limit=200&q=${encodeURIComponent(q)}`);
-    state.connections = data.connections || [];
-    renderConnections();
-  }
-
-  async function refreshDNS() {
-    const q = state.filters.dns;
-    const data = await api(`/api/dns?limit=200&q=${encodeURIComponent(q)}`);
-    state.dns = data.queries || [];
-    renderDNS();
-  }
-
-  async function refreshLogs() {
-    const data = await api('/api/logs?limit=250');
-    state.logs = data.logs || [];
-    renderLogs();
-  }
-
-  async function loadConfig() {
-    const data = await api('/api/config');
-    state.config = data;
-    els.configMetaPath.textContent = data.path || '--';
-    els.configHint.textContent = data.hint || data.error || '--';
-    if (data.error) {
-      setConfigError(`${data.error}${data.hint ? ' · ' + data.hint : ''}`);
-      return;
-    }
-    setConfigError('');
-    initEditor();
-    if (state.editor) {
-      if (!state.editorDirty) {
-        state.editor.setValue(data.content || '');
-        state.editorDirty = false;
-      }
-      state.editor.refresh();
-    } else {
-      els.editor.value = data.content || '';
-    }
-  }
-
-  function currentConfigValue() {
-    return state.editor ? state.editor.getValue() : els.editor.value;
-  }
-
   async function saveConfig() {
     const content = currentConfigValue();
     const data = await api('/api/config', {
       method: 'PUT',
       body: JSON.stringify({ content }),
     });
-    if (data.ok) {
-      state.editorDirty = false;
-      setConfigError('');
-      await loadConfig();
+    if (!data.ok) {
+      setConfigError(data.error || '保存失败');
       return;
     }
-    setConfigError(data.error || '保存失败');
+    state.editorDirty = false;
+    state.config.content = content;
+    state.config.error = '';
+    state.config.hint = data.hint || state.config.hint || '';
+    renderConfigPanel();
   }
 
   async function reloadConfig() {
     const data = await api('/api/reload', { method: 'POST', body: '{}' });
-    if (!data.ok) setConfigError(data.error || '重载失败');
+    if (!data.ok) {
+      setConfigError(data.error || '重载失败');
+    }
   }
 
   function setTab(name) {
     document.querySelectorAll('.tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === name));
     document.querySelectorAll('.panel').forEach(panel => panel.classList.toggle('active', panel.id === `panel-${name}`));
-    if (name === 'config') {
-      if (state.config && !state.editorDirty) {
-        loadConfig();
-      }
-      if (state.editor) state.editor.refresh();
-    }
-    if (name === 'subscriptions') {
-      refreshSubscriptions();
+    if (name === 'config' && state.editor) {
+      state.editor.refresh();
     }
   }
 
   function bindEvents() {
     document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
-    els.trafficSearch.addEventListener('input', e => { state.filters.traffic = e.target.value; refreshTraffic(); });
-    els.connSearch.addEventListener('input', e => { state.filters.connections = e.target.value; refreshConnections(); });
-    els.dnsSearch.addEventListener('input', e => { state.filters.dns = e.target.value; refreshDNS(); });
+    els.trafficSearch.addEventListener('input', e => {
+      state.filters.traffic = e.target.value;
+      renderTraffic();
+    });
+    els.dnsSearch.addEventListener('input', e => {
+      state.filters.dns = e.target.value;
+      renderDNS();
+    });
+    els.logSearch.addEventListener('input', e => {
+      state.filters.logs = e.target.value;
+      renderLogs();
+    });
     els.saveBtn.addEventListener('click', saveConfig);
     els.reloadBtn.addEventListener('click', reloadConfig);
     els.themeAuto.addEventListener('click', () => setTheme('auto'));
@@ -1161,42 +1166,26 @@
       if (!val) return;
       localStorage.setItem('dae-console-token', val);
       hideTokenModal();
-      doBootstrap().catch(err => {
-        if (err?.message === 'unauthorized') return;
-        console.error(err);
-        els.subtitle.textContent = '控制台加载失败';
-      });
+      state.wsShouldReconnect = true;
+      connectWs();
     });
     document.getElementById('tokenInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('tokenSubmit').click();
     });
-  }
-
-  async function refreshAll() {
-    await Promise.all([
-      refreshStatus(),
-      refreshSummary(),
-      refreshSubscriptions(),
-      refreshTraffic(),
-      refreshConnections(),
-      refreshDNS(),
-      refreshLogs(),
-    ]);
-  }
-
-  let lastLogId = 0;
-  async function pollLogs() {
-    const data = await api('/api/logs?limit=80');
-    const logs = data.logs || [];
-    if (!logs.length) return;
-    if (lastLogId && logs[0].id === lastLogId) return;
-    lastLogId = logs[0].id;
-    state.logs = logs;
-    renderLogs();
-    await Promise.all([refreshStatus(), refreshSummary(), refreshSubscriptions(), refreshTraffic(), refreshConnections(), refreshDNS()]);
+    window.addEventListener('beforeunload', () => {
+      state.wsShouldReconnect = false;
+      if (state.ws) {
+        try { state.ws.close(); } catch {}
+      }
+    });
   }
 
   function showTokenModal(unauthorized) {
+    state.wsShouldReconnect = false;
+    if (state.ws) {
+      try { state.ws.close(); } catch {}
+      state.ws = null;
+    }
     if (unauthorized) {
       localStorage.removeItem('dae-console-token');
       document.getElementById('tokenModalHint').textContent = '令牌无效或已过期，请重新输入';
@@ -1212,30 +1201,110 @@
     document.getElementById('tokenOverlay').style.display = 'none';
   }
 
-  async function doBootstrap() {
-    await refreshAll();
-    await loadConfig();
-    lastLogId = state.logs[0]?.id || 0;
-    setInterval(() => {
-      pollLogs().catch(e => { if (e?.message !== 'unauthorized') console.error(e); });
-    }, 2000);
-    setInterval(() => {
-      if (state.editorDirty || document.getElementById('panel-config').classList.contains('active')) {
+  function applySnapshot(payload) {
+    if (!payload) return;
+    if (payload.status) state.status = payload.status;
+    if (payload.summary) state.summary = payload.summary;
+    if (payload.config) state.config = payload.config;
+    if (payload.logs) state.logs = payload.logs;
+    if (payload.traffic) state.traffic = payload.traffic;
+    if (payload.connections) state.connections = payload.connections;
+    if (payload.dns) state.dns = payload.dns;
+    renderAll();
+  }
+
+  function applySync(payload) {
+    if (!payload) return;
+    if (payload.status) state.status = payload.status;
+    if (payload.summary) state.summary = payload.summary;
+    if (payload.config) state.config = payload.config;
+    renderStatus();
+    renderSubscriptions();
+    renderGroups();
+    renderConfigPanel();
+  }
+
+  function handleMessage(msg) {
+    if (!msg || !msg.type) return;
+    if (msg.type === 'snapshot') {
+      applySnapshot(msg.data);
+      return;
+    }
+    if (msg.type === 'sync') {
+      applySync(msg.data);
+      return;
+    }
+    if (msg.type === 'log.append') {
+      state.logs = replaceOrPrepend(state.logs, msg.data, 'id', 4000);
+      renderLogs();
+      return;
+    }
+    if (msg.type === 'flow.append') {
+      state.traffic = prependUnique(state.traffic, msg.data, 'time', 200);
+      state.connections = prependUnique(state.connections, msg.data, 'time', 200);
+      renderTraffic();
+      renderConnections();
+      return;
+    }
+    if (msg.type === 'dns.append') {
+      state.dns = prependUnique(state.dns, msg.data, 'time', 200);
+      renderDNS();
+    }
+  }
+
+  function connectWs() {
+    const token = localStorage.getItem('dae-console-token') || '';
+    if (!token) return;
+    state.wsShouldReconnect = true;
+    if (state.ws) {
+      try { state.ws.close(); } catch {}
+    }
+    const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const url = `${scheme}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
+    const ws = new WebSocket(url);
+    state.ws = ws;
+    let opened = false;
+
+    ws.onopen = () => {
+      opened = true;
+    };
+    ws.onmessage = ev => {
+      try {
+        handleMessage(JSON.parse(ev.data));
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    ws.onerror = () => {};
+    ws.onclose = () => {
+      state.ws = null;
+      if (!opened) {
+        showTokenModal(true);
         return;
       }
-      loadConfig().catch(console.error);
-    }, 8000);
+      if (state.wsShouldReconnect && localStorage.getItem('dae-console-token')) {
+        clearTimeout(state.reconnectTimer);
+        state.reconnectTimer = setTimeout(connectWs, 2000);
+      }
+    };
   }
+
+  function toggleGroupAccordion(btn) {
+    const card = btn.closest('.group-accordion');
+    if (card) card.classList.toggle('expanded');
+  }
+  window.toggleGroupAccordion = toggleGroupAccordion;
 
   async function bootstrap() {
     bindEvents();
     applyTheme();
     updateThemeButtons();
+    setTab('subscriptions');
     if (!localStorage.getItem('dae-console-token')) {
       showTokenModal(false);
       return;
     }
-    await doBootstrap();
+    connectWs();
   }
 
   bootstrap().catch(err => {

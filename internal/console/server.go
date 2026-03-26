@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/daeuniverse/dae/control"
+	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 )
 
@@ -65,6 +66,7 @@ type Console struct {
 	provider Provider
 	server   *http.Server
 	stdOnce  sync.Once
+	hub      *wsHub
 }
 
 func New(addr, serviceName, configPath, configEnv string) (*Console, error) {
@@ -83,6 +85,7 @@ func New(addr, serviceName, configPath, configEnv string) (*Console, error) {
 		store:       NewLogStore(4000, 1200),
 		page:        page,
 		token:       generateToken(),
+		hub:         newWSHub(),
 	}, nil
 }
 
@@ -102,10 +105,12 @@ func (c *Console) AttachStandardLogger(log *logrus.Logger) {
 
 func (c *Console) RecordFlow(record control.DashboardFlowRecord) {
 	c.store.RecordFlow(record)
+	c.broadcastEvent("flow.append", record)
 }
 
 func (c *Console) RecordDNS(record control.DashboardDNSRecord) {
 	c.store.RecordDNS(record)
+	c.broadcastEvent("dns.append", record)
 }
 
 func (c *Console) SetProvider(p Provider) {
@@ -142,6 +147,7 @@ func (c *Console) Start(ctx context.Context) error {
 	mux.HandleFunc("/api/logs", c.handleLogs)
 	mux.HandleFunc("/api/config", c.handleConfig)
 	mux.HandleFunc("/api/reload", c.handleReload)
+	mux.HandleFunc("/ws", c.handleWS)
 
 	srv := &http.Server{
 		Addr:              c.addr,
@@ -159,6 +165,7 @@ func (c *Console) Start(ctx context.Context) error {
 		defer cancel()
 		_ = srv.Shutdown(shutdownCtx)
 	}()
+	go c.startBroadcastLoops(ctx)
 	go func() {
 		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logrus.WithError(err).Warn("console server stopped")
@@ -186,6 +193,12 @@ func (c *Console) withToken(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		if r.URL.Path == "/ws" {
+			if r.URL.Query().Get("token") != c.token {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+		}
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			auth := r.Header.Get("Authorization")
 			if auth != "Bearer "+c.token {
@@ -205,43 +218,11 @@ func (c *Console) handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Console) handleStatus(w http.ResponseWriter, r *http.Request) {
-	systemd := querySystemd(c.serviceName)
-	snapshot, ok := c.providerSnapshot()
-	status := "offline"
-	if systemd.ActiveState == "active" {
-		status = "online"
-		if !ok {
-			status = "degraded"
-		}
-	} else if systemd.ActiveState == "reloading" {
-		status = "reloading"
-	}
-	c.renderJSON(w, map[string]any{
-		"status":             status,
-		"systemd":            systemd,
-		"activity_age":       c.store.ActivityAgeSeconds(),
-		"updated_at":         time.Now(),
-		"has_snapshot":       ok,
-		"groups":             snapshot.TotalGroups,
-		"subscription_nodes": snapshot.TotalSubscriptionNodes,
-		"config_path":        func() string { p, _ := c.configPathWithHint(); return p }(),
-		"config_env_key":     c.configEnv,
-	})
+	c.renderJSON(w, c.statusPayload())
 }
 
 func (c *Console) handleSummary(w http.ResponseWriter, r *http.Request) {
-	snapshot, ok := c.providerSnapshot()
-	if !ok {
-		c.renderJSON(w, map[string]any{"groups": []any{}, "nodes": []any{}, "total_groups": 0, "total_nodes": 0})
-		return
-	}
-	c.renderJSON(w, map[string]any{
-		"groups":       snapshot.Groups,
-		"nodes":        snapshot.Nodes,
-		"total_groups": snapshot.TotalGroups,
-		"total_nodes":  snapshot.TotalSubscriptionNodes,
-		"updated_at":   snapshot.UpdatedAt,
-	})
+	c.renderJSON(w, c.summaryPayload())
 }
 
 func (c *Console) handleGroups(w http.ResponseWriter, r *http.Request) {
@@ -383,6 +364,7 @@ func (c *Console) handleConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		c.renderJSON(w, map[string]any{"ok": true, "path": path, "hint": hint})
+		c.broadcastSync()
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
@@ -410,6 +392,7 @@ func (c *Console) handleReload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.renderJSON(w, map[string]any{"ok": true})
+	c.broadcastSync()
 }
 
 func (c *Console) renderJSON(w http.ResponseWriter, v any) {
@@ -508,4 +491,28 @@ func reloadSelf() error {
 		return err
 	}
 	return nil
+}
+
+func (c *Console) startBroadcastLoops(ctx context.Context) {
+	logCh, stop := c.store.Subscribe()
+	defer stop()
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case v, ok := <-logCh:
+			if !ok {
+				return
+			}
+			c.broadcastEvent("log.append", v)
+		case <-ticker.C:
+			c.broadcastSync()
+		}
+	}
+}
+
+var wsUpgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
 }
