@@ -623,17 +623,6 @@ func (c *DnsController) dialSend(invokingDepth int, req *udpRequest, data []byte
 		IpVersion: dialArgument.ipversion,
 		IsDns:     true,
 	}
-	if c.dashboard != nil {
-		c.dashboard.RecordDNS(DashboardDNSRecord{
-			Time:     time.Now(),
-			QName:    strings.TrimSuffix(strings.ToLower(qname), "."),
-			QType:    QtypeToString(qtype),
-			Network:  networkType.String(),
-			Outbound: dialArgument.bestOutbound.Name,
-			Dialer:   dialArgument.bestDialer.Property().Name,
-			Upstream: upstreamName,
-		})
-	}
 
 	// Dial and send.
 	var respMsg *dnsmessage.Msg
@@ -741,6 +730,29 @@ func (c *DnsController) dialSend(invokingDepth int, req *udpRequest, data []byte
 		default:
 			return fmt.Errorf("unknown upstream: %v", upstreamIndex.String())
 		}
+	}
+	// Record DNS with answer IPs after response is received.
+	if c.dashboard != nil {
+		var answerIPs []string
+		for _, ans := range respMsg.Answer {
+			switch rr := ans.(type) {
+			case *dnsmessage.A:
+				answerIPs = append(answerIPs, rr.A.String())
+			case *dnsmessage.AAAA:
+				answerIPs = append(answerIPs, rr.AAAA.String())
+			}
+		}
+		answerStr := strings.Join(answerIPs, ", ")
+		c.dashboard.RecordDNS(DashboardDNSRecord{
+			Time:     time.Now(),
+			QName:    strings.TrimSuffix(strings.ToLower(qname), "."),
+			QType:    QtypeToString(qtype),
+			Network:  networkType.String(),
+			Outbound: dialArgument.bestOutbound.Name,
+			Dialer:   dialArgument.bestDialer.Property().Name,
+			Upstream: upstreamName,
+			Answer:   answerStr,
+		})
 	}
 	if err = c.NormalizeAndCacheDnsResp_(respMsg); err != nil {
 		return err

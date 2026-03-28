@@ -188,6 +188,25 @@ func (c *Console) summaryPayload() map[string]any {
 }
 
 func (c *Console) configPayload() configSnapshot {
+	c.mu.RLock()
+	if c.configCacheOnce {
+		snap := c.configCache
+		c.mu.RUnlock()
+		return snap
+	}
+	c.mu.RUnlock()
+
+	snap := c.buildConfigPayload()
+
+	c.mu.Lock()
+	c.configCache = snap
+	c.configCacheOnce = true
+	c.mu.Unlock()
+
+	return snap
+}
+
+func (c *Console) buildConfigPayload() configSnapshot {
 	path, hint := c.configPathWithHint()
 	view := configSnapshot{
 		Path:   path,
@@ -215,6 +234,12 @@ func (c *Console) configPayload() configSnapshot {
 	view.Subscriptions = makeConfigEntries("subscription", conf.Subscription)
 	view.Nodes = makeConfigEntries("node", conf.Node)
 	return view
+}
+
+func (c *Console) invalidateConfigCache() {
+	c.mu.Lock()
+	c.configCacheOnce = false
+	c.mu.Unlock()
 }
 
 func makeConfigEntries(source string, values []config.KeyableString) []configEntrySnapshot {
@@ -251,4 +276,5 @@ func (c *Console) broadcastSync() {
 		return
 	}
 	c.hub.broadcast(wsEnvelope{Type: "sync", Data: c.syncPayload()})
+	c.lastSyncSig.Store(c.syncSig())
 }

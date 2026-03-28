@@ -35,6 +35,7 @@ type DashboardDNSRecord struct {
 	Outbound string    `json:"outbound"`
 	Dialer   string    `json:"dialer"`
 	Upstream string    `json:"upstream"`
+	Answer   string    `json:"answer"`
 }
 
 type DashboardRecorder interface {

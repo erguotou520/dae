@@ -13,7 +13,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"io"
 	"math/big"
+	"sync/atomic"
 	"net"
 	"net/http"
 	"os"
@@ -47,6 +50,19 @@ func generateToken() string {
 	return string(b)
 }
 
+func loadOrInitToken(path string) string {
+	data, err := os.ReadFile(path)
+	if err == nil {
+		t := strings.TrimSpace(string(data))
+		if t != "" {
+			return t
+		}
+	}
+	t := generateToken()
+	_ = os.WriteFile(path, []byte(t), 0600)
+	return t
+}
+
 type Provider interface {
 	DashboardSnapshot() control.DashboardSnapshot
 }
@@ -67,6 +83,10 @@ type Console struct {
 	server   *http.Server
 	stdOnce  sync.Once
 	hub      *wsHub
+
+	configCache     configSnapshot
+	configCacheOnce bool
+	lastSyncSig     atomic.Uint64
 }
 
 func New(addr, serviceName, configPath, configEnv string) (*Console, error) {
@@ -77,6 +97,11 @@ func New(addr, serviceName, configPath, configEnv string) (*Console, error) {
 	if err != nil {
 		return nil, err
 	}
+	tokenPath := ""
+	if configPath != "" {
+		tokenPath = filepath.Join(filepath.Dir(configPath), "token.txt")
+	}
+	token := loadOrInitToken(tokenPath)
 	return &Console{
 		addr:        addr,
 		serviceName: serviceName,
@@ -84,7 +109,7 @@ func New(addr, serviceName, configPath, configEnv string) (*Console, error) {
 		configEnv:   configEnv,
 		store:       NewLogStore(4000, 1200),
 		page:        page,
-		token:       generateToken(),
+		token:       token,
 		hub:         newWSHub(),
 	}, nil
 }
@@ -117,16 +142,16 @@ func (c *Console) SetProvider(p Provider) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.provider = p
+	c.configCacheOnce = false
 }
 
 func (c *Console) providerSnapshot() (control.DashboardSnapshot, bool) {
 	c.mu.RLock()
-	p := c.provider
-	c.mu.RUnlock()
-	if p == nil {
+	defer c.mu.RUnlock()
+	if c.provider == nil {
 		return control.DashboardSnapshot{}, false
 	}
-	return p.DashboardSnapshot(), true
+	return c.provider.DashboardSnapshot(), true
 }
 
 func (c *Console) Start(ctx context.Context) error {
@@ -284,16 +309,18 @@ func (c *Console) handleSubscriptions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (c *Console) handleTraffic(w http.ResponseWriter, r *http.Request) {
+func (c *Console) handleFlows(w http.ResponseWriter, r *http.Request, key string) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	limit := queryInt(r, "limit", 200)
-	c.renderJSON(w, map[string]any{"records": c.store.Flows(limit, q)})
+	c.renderJSON(w, map[string]any{key: c.store.Flows(limit, q)})
+}
+
+func (c *Console) handleTraffic(w http.ResponseWriter, r *http.Request) {
+	c.handleFlows(w, r, "records")
 }
 
 func (c *Console) handleConnections(w http.ResponseWriter, r *http.Request) {
-	q := strings.TrimSpace(r.URL.Query().Get("q"))
-	limit := queryInt(r, "limit", 200)
-	c.renderJSON(w, map[string]any{"connections": c.store.Flows(limit, q)})
+	c.handleFlows(w, r, "connections")
 }
 
 func (c *Console) handleDNS(w http.ResponseWriter, r *http.Request) {
@@ -364,6 +391,7 @@ func (c *Console) handleConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		c.renderJSON(w, map[string]any{"ok": true, "path": path, "hint": hint})
+		c.invalidateConfigCache()
 		c.broadcastSync()
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -371,6 +399,10 @@ func (c *Console) handleConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Console) handleReload(w http.ResponseWriter, r *http.Request) {
+	// Drain request body to allow connection reuse.
+	_, _ = io.Copy(io.Discard, r.Body)
+	_ = r.Body.Close()
+
 	path, _ := c.configPathWithHint()
 	exe, err := os.Executable()
 	if err != nil {
@@ -392,6 +424,7 @@ func (c *Console) handleReload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.renderJSON(w, map[string]any{"ok": true})
+	c.invalidateConfigCache()
 	c.broadcastSync()
 }
 
@@ -508,9 +541,35 @@ func (c *Console) startBroadcastLoops(ctx context.Context) {
 			}
 			c.broadcastEvent("log.append", v)
 		case <-ticker.C:
-			c.broadcastSync()
+			c.maybeBroadcastSync()
 		}
 	}
+}
+
+// syncSig computes a cheap signature from the stable parts of sync data
+// (everything except activity_age and updated_at which change every tick).
+func (c *Console) syncSig() uint64 {
+	payload := c.syncPayload()
+	h := fnv.New64a()
+	s := payload.Status
+	fmt.Fprintf(h, "%v%v%v%v", s["status"], s["has_snapshot"], s["groups"], s["subscription_nodes"])
+	json.NewEncoder(h).Encode(payload.Summary)
+	h.Write([]byte(payload.Config.Content))
+	h.Write([]byte(payload.Config.Error))
+	return h.Sum64()
+}
+
+func (c *Console) maybeBroadcastSync() {
+	sig := c.syncSig()
+	if c.lastSyncSig.CompareAndSwap(0, sig) {
+		// first tick: snapshot was already sent on WS connect, just record baseline
+		return
+	}
+	if c.lastSyncSig.Load() == sig {
+		return // unchanged, skip
+	}
+	c.lastSyncSig.Store(sig)
+	c.broadcastSync()
 }
 
 var wsUpgrader = websocket.Upgrader{
