@@ -43,36 +43,6 @@
 - 控制台必须在 `run` 命令中启动，并绑定到当前 `ControlPlane`
 - reload 过程中会重建 `ControlPlane`，控制台必须能切换到新实例，不能持有过期引用
 
-## 控制台 Token 与配置读取
-
-### 1. Token 生成与持久化
-
-- 内置控制台 token 由服务端在启动时生成（36 位，字符集为大小写字母与数字）。
-- token 文件路径固定为：`dirname(--config)/token.txt`。
-- 如果 `token.txt` 已存在且非空，则复用原 token；否则生成新 token 并写入文件（权限 `0600`）。
-- 控制台启动时会在日志输出：`[Console] Access token: ...`。
-
-### 2. Token 使用方式
-
-- HTTP API（`/api/*`）要求请求头：`Authorization: Bearer <token>`。
-- WebSocket（`/ws`）要求 URL 参数：`?token=<token>`。
-- 页面端会将 token 存入浏览器 `localStorage`（key: `dae-console-token`）
-
-### 3. 配置路径判定优先级
-
-控制台读写配置文件与执行 reload/validate 时的路径优先级如下：
-
-1. 环境变量 `DAE_CONFIG_PATH`（非空即优先）
-2. `dae run --config <path>` 传入路径
-3. 回退默认 `/usr/local/etc/dae/config.dae`
-
-注意：控制台状态栏中的 `config_path` 才是当前后端实际使用路径，排查“页面内容与文件不一致”时应以此为准。
-
-### 4. 与前端编辑状态相关的约束
-
-- 配置编辑器在“有未保存修改”时，不会被自动同步覆盖。
-- 因此页面显示内容可能暂时与磁盘文件不一致，这是前端保护行为，不代表后端读取错误。
-
 ## 开发规范
 
 ### 1. 以控制平面为真源
