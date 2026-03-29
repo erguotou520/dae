@@ -713,6 +713,21 @@
     el.innerHTML = html;
   }
 
+  // Render debouncing: coalesce multiple rapid render calls into one.
+  const _pendingRenders = new Set();
+  let _renderRAF = 0;
+  function scheduleRender(fn) {
+    _pendingRenders.add(fn);
+    if (!_renderRAF) {
+      _renderRAF = requestAnimationFrame(() => {
+        _renderRAF = 0;
+        const fns = [..._pendingRenders];
+        _pendingRenders.clear();
+        fns.forEach(f => f());
+      });
+    }
+  }
+
   const state = {
     theme: localStorage.getItem('dae-console-theme') || 'auto',
     currentTheme: 'light',
@@ -793,7 +808,7 @@
     window.addEventListener('beforeunload', () => {
       state.wsShouldReconnect = false;
       if (state.ws) {
-        try { state.ws.close(); } catch {}
+        try { state.ws.close(); } catch (e) {}
       }
     });
   }
@@ -837,7 +852,7 @@
         const protocol = url.protocol.replace(':', '');
         const port = url.port || ({ https: '443', http: '80', socks5: '1080' }[protocol] || '');
         return `${protocol}://${url.hostname}${port ? `:${port}` : ''}`;
-      } catch {
+      } catch (e) {
         return name.length > 60 ? `${name.slice(0, 60)}...` : name;
       }
     }
@@ -1118,7 +1133,9 @@
       return `${log.level || ''} ${log.message || ''} ${fields}`;
     });
     els.logsCountChip.textContent = `${logs.length} logs`;
-    setHTML(els.logList, logs.length ? logs.map(log => {
+    // Only render the latest 200 visible logs to limit DOM size
+    const visible = logs.slice(0, 200);
+    setHTML(els.logList, visible.length ? visible.map(log => {
       const level = normalizeLevel(log.level);
       return `
         <div class="log-row">
@@ -1153,7 +1170,7 @@
     const text = await res.text();
     try {
       return JSON.parse(text);
-    } catch {
+    } catch (e) {
       return { raw: text };
     }
   }
@@ -1226,7 +1243,7 @@
     window.addEventListener('beforeunload', () => {
       state.wsShouldReconnect = false;
       if (state.ws) {
-        try { state.ws.close(); } catch {}
+        try { state.ws.close(); } catch (e) {}
       }
     });
   }
@@ -1234,7 +1251,7 @@
   function showTokenModal(unauthorized) {
     state.wsShouldReconnect = false;
     if (state.ws) {
-      try { state.ws.close(); } catch {}
+      try { state.ws.close(); } catch (e) {}
       state.ws = null;
     }
     if (unauthorized) {
@@ -1325,20 +1342,20 @@
       return;
     }
     if (msg.type === 'log.append') {
-      state.logs = replaceOrPrepend(state.logs, msg.data, 'id', 4000);
-      renderLogs();
+      state.logs = replaceOrPrepend(state.logs, msg.data, 'id', 1000);
+      scheduleRender(renderLogs);
       return;
     }
     if (msg.type === 'flow.append') {
       state.traffic = prependUnique(state.traffic, msg.data, 'time', 200);
       state.connections = prependUnique(state.connections, msg.data, 'time', 200);
-      renderTraffic();
-      renderConnections();
+      scheduleRender(renderTraffic);
+      scheduleRender(renderConnections);
       return;
     }
     if (msg.type === 'dns.append') {
       state.dns = prependUnique(state.dns, msg.data, 'time', 200);
-      renderDNS();
+      scheduleRender(renderDNS);
     }
   }
 
@@ -1347,7 +1364,7 @@
     if (!token) return;
     state.wsShouldReconnect = true;
     if (state.ws) {
-      try { state.ws.close(); } catch {}
+      try { state.ws.close(); } catch (e) {}
     }
     const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const url = `${scheme}//${window.location.host}/ws?token=${encodeURIComponent(token)}`;
