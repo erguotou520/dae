@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   workflow_call:
   pull_request:
-    branches: [main]
+    branches: [feat/erguotou]
     types: [ opened, synchronize, reopened ]
     paths:
       - 'README.md'
