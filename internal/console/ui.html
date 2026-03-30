@@ -100,6 +100,8 @@
     .chip.online{border-color:var(--good);border-color:color-mix(in oklab, var(--good) 40%, var(--border)); color:var(--good)}
     .chip.degraded{border-color:var(--warn);border-color:color-mix(in oklab, var(--warn) 45%, var(--border)); color:var(--warn)}
     .chip.offline{border-color:var(--bad);border-color:color-mix(in oklab, var(--bad) 45%, var(--border)); color:var(--bad)}
+    .toggle-label{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--muted);user-select:none}
+    .toggle-label input{accent-color:var(--accent);width:14px;height:14px}
     .theme-switch{display:flex;align-items:center;gap:8px}
     .icon-btn{
       width:36px;height:36px;border-radius:50%;
@@ -568,7 +570,13 @@
       <section class="panel" id="panel-groups">
         <div class="panel-toolbar">
           <div class="hint">分组运行时快照，accordion 展开查看组内节点</div>
-          <div class="actions"><span class="chip" id="groupsCountChip">--</span></div>
+          <div class="actions">
+            <label class="toggle-label" title="隐藏 IPv6 网络信息（tcp6/udp6）">
+              <input type="checkbox" id="hideIPv6Toggle" onchange="toggleHideIPv6(this.checked)" />
+              <span>隐藏IPv6</span>
+            </label>
+            <span class="chip" id="groupsCountChip">--</span>
+          </div>
         </div>
         <div id="groupList" class="group-list"></div>
       </section>
@@ -688,6 +696,7 @@
     subscriptionsList: document.getElementById('subscriptionsList'),
     sidebarGroupList: document.getElementById('sidebarGroupList'),
     groupList: document.getElementById('groupList'),
+    hideIPv6Toggle: document.getElementById('hideIPv6Toggle'),
     trafficTable: document.getElementById('trafficTable'),
     connectionsTable: document.getElementById('connectionsTable'),
     dnsTable: document.getElementById('dnsTable'),
@@ -741,6 +750,7 @@
     traffic: [],
     connections: [],
     dns: [],
+    hideIPv6: localStorage.getItem('dae-console-hide-ipv6') === 'true',
     filters: { traffic: '', dns: '', logs: '' },
     ws: null,
     reconnectTimer: null,
@@ -754,6 +764,13 @@
     applyTheme();
     updateThemeButtons();
   }
+
+  function toggleHideIPv6(checked) {
+    state.hideIPv6 = checked;
+    localStorage.setItem('dae-console-hide-ipv6', checked);
+    renderGroups();
+  }
+  window.toggleHideIPv6 = toggleHideIPv6;
 
   function applyTheme() {
     const preferDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -992,6 +1009,11 @@
     `);
   }
 
+  function filterIPv6(networks) {
+    if (!state.hideIPv6) return networks;
+    return (networks || []).filter(n => !(n.network_type || '').includes('6'));
+  }
+
   function renderSidebarGroups() {
     const groups = state.summary.groups || [];
     els.totalGroups.textContent = groups.length;
@@ -1000,7 +1022,8 @@
       return;
     }
     setHTML(els.sidebarGroupList, groups.map(g => {
-      const net = (g.networks || [])[0] || {};
+      const nets = filterIPv6(g.networks);
+      const net = nets[0] || {};
       const current = net.current_dialer || '--';
       return `
         <div class="group-card">
@@ -1030,7 +1053,7 @@
     }
 
     setHTML(els.groupList, groups.map((g, index) => {
-      const networks = g.networks || [];
+      const networks = filterIPv6(g.networks);
       const first = networks[0] || {};
       return `
         <div class="group-accordion${index === 0 ? ' expanded' : ''}">
@@ -1408,6 +1431,7 @@
     bindEvents();
     applyTheme();
     updateThemeButtons();
+    els.hideIPv6Toggle.checked = state.hideIPv6;
     setTab('subscriptions');
     if (!localStorage.getItem('dae-console-token')) {
       showTokenModal(false);
