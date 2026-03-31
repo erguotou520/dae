@@ -94,3 +94,26 @@ node {
 **原因**：JavaScript 代码在 IIFE（立即执行函数表达式）内部，`onclick="toggleHideIPv6(this.checked)"` 无法访问 IIFE 内部定义的函数。
 
 **修复**：将 `toggleHideIPv6` 挂载到 `window` 对象上：`window.toggleHideIPv6 = toggleHideIPv6`。
+
+## dongfangfuli.com 反复无法访问
+
+**现象**：dongfangfuli.com 解析到 8.139.72.17（中国 IP），但通过 ROS → dae 代理访问时失败，从 200 直接 curl 正常。
+
+**原因**：流量路径导致的问题链：
+
+1. **ROS mangle rule *6**：src in PROXY + dst in 8.139.0.0/16 → mark routing `to_Wrt` → 送给 dae
+2. **dae 路由**：`domain(suffix: dongfangfuli.com) -> fast` → 通过海外代理（新加坡/日本）连接 8.139.72.17
+3. **中国服务器拒绝海外 IP**：8.139.72.17 拒绝或限制海外 IP 的 TLS 连接，导致 TCP 握手后 TLS 失败
+
+尝试改为 `direct` 也不行：dae 的 tproxy `direct` 模式保留原始源 IP（192.168.8.1），包从 200 发回 ROS 后，ROS 看到源 IP 是自己的地址，无法正确路由，形成环路（SYN 被反复 In/Out）。
+
+**修复**：在 ROS 层面将 dongfangfuli.com 的流量标记为 `direct`，绕过 dae 直接走 ISP：
+
+```python
+# ROS mangle rule *6: 将 new-routing-mark 从 to_Wrt 改为 direct
+api.path('ip', 'firewall', 'mangle').update(**{'.id': '*6', 'new-routing-mark': 'direct'})
+```
+
+修改后流量路径：Mac → ROS → mangle rule *6 → mark routing `direct` → main 路由表 → pppoe-out1 → ISP → 8.139.72.17（直连，0.2s 可达）。
+
+**注意**：8.139.0.0/16 不在 ROS 的 CN 地址列表中，所以不能依赖 CN 规则（rule *5）自动处理，需要保留 rule *6 但改为 `direct` 路由标记。
