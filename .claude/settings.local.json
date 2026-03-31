@@ -3,7 +3,8 @@
     "allow": [
       "Bash(open:*)",
       "Bash(open -a Docker)",
-      "Bash(docker info:*)"
+      "Bash(docker info:*)",
+      "Bash(go build:*)"
     ]
   }
 }

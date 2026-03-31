@@ -589,6 +589,33 @@ func (d *Dialer) Check(opts *CheckOption) (ok bool, err error) {
 			"mov_avg": collection.MovingAverage.Truncate(time.Millisecond),
 		}).Debugln("Connectivity Check")
 	} else {
+		// First check failed; wait briefly and retry once to avoid false negatives
+		// caused by transient network blips (e.g. PPPoE re-dial, route convergence).
+		select {
+		case <-ctx.Done():
+			// Parent context already expired, skip retry.
+		case <-time.After(2 * time.Second):
+			retryCtx, retryCancel := context.WithTimeout(context.TODO(), Timeout)
+			ok, err = opts.CheckFunc(retryCtx, opts.networkType)
+			retryCancel()
+			if ok && err == nil {
+				latency := time.Since(start)
+				collection.Latencies10.AppendLatency(latency)
+				avg, _ := collection.Latencies10.AvgLatency()
+				collection.MovingAverage = (collection.MovingAverage + latency) / 2
+				collection.Alive = true
+
+				d.Log.WithFields(logrus.Fields{
+					"network": opts.networkType.String(),
+					"node":    d.property.Name,
+					"last":    latency.Truncate(time.Millisecond).String(),
+					"avg_10":  avg.Truncate(time.Millisecond),
+					"mov_avg": collection.MovingAverage.Truncate(time.Millisecond),
+				}).Debugln("Connectivity Check (retry succeeded)")
+				d.informDialerGroupUpdate(collection)
+				return ok, err
+			}
+		}
 		d.logUnavailable(collection, opts.networkType, err)
 	}
 	d.informDialerGroupUpdate(collection)
