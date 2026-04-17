@@ -193,6 +193,13 @@
       padding-left:20px;
     }
     .group-meta span:not(.latency){display:flex;align-items:center;font-family:var(--mono);font-size:11px;color:var(--muted)}
+    .group-meta-groups{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+    .group-meta-groups .tag{font-size:10px}
     .group-meta .latency{margin-left:auto;font-size:12px;}
     .group-meta .latency.latency-good{color:var(--good)}
     .group-meta .latency.latency-warn{color:var(--warn)}
@@ -583,7 +590,7 @@
 
       <section class="panel" id="panel-traffic">
         <div class="panel-toolbar">
-          <div class="hint">显示流量解析记录，包含域名、DNS 服务器、出站分组、拨号器、策略和网络类型</div>
+          <div class="hint">显示流量解析记录，包含请求时间、域名、出站分组、拨号器、策略和网络类型</div>
           <div class="actions">
             <input class="search" id="trafficSearch" placeholder="搜索域名，例如 google.com" />
           </div>
@@ -592,7 +599,7 @@
           <table>
             <thead>
               <tr>
-                <th>域名</th><th>DNS 服务器</th><th>分组</th><th>拨号器</th><th>策略</th><th>网络</th>
+                <th>请求时间</th><th>域名</th><th>分组</th><th>拨号器</th><th>策略</th><th>网络</th>
               </tr>
             </thead>
             <tbody id="trafficTable"></tbody>
@@ -1016,6 +1023,12 @@
 
   function renderSidebarGroups() {
     const groups = state.summary.groups || [];
+    const nodes = state.summary.nodes || [];
+    const nodeMap = new Map();
+    nodes.forEach(node => {
+      if (!node || !node.name) return;
+      if (!nodeMap.has(node.name)) nodeMap.set(node.name, node);
+    });
     els.totalGroups.textContent = groups.length;
     if (!groups.length) {
       setHTML(els.sidebarGroupList, `<div class="empty">暂时没有分组数据</div>`);
@@ -1025,6 +1038,8 @@
       const nets = filterIPv6(g.networks);
       const net = nets[0] || {};
       const current = net.current_dialer || '--';
+      const selectedNode = current !== '--' ? nodeMap.get(current) : null;
+      const relatedGroups = selectedNode && Array.isArray(selectedNode.groups) && selectedNode.groups.length ? selectedNode.groups : ['node'];
       return `
         <div class="group-card">
           <span class="tag group-type-badge">${escapeHtml(net.network_type || '--')}</span>
@@ -1034,6 +1049,10 @@
           </div>
           <div class="group-meta">
             <span>${escapeHtml(current)}</span>
+            <span class="group-meta-groups">
+              <span class="tag">所属</span>
+              ${relatedGroups.map(name => `<span class="tag">${escapeHtml(name)}</span>`).join('')}
+            </span>
             ${latencySpan(net.current_latency_ms)}
           </div>
         </div>
@@ -1105,11 +1124,11 @@
   }
 
   function renderTraffic() {
-    const items = filterList(state.traffic || [], state.filters.traffic, x => `${x.domain || ''} ${x.dns || ''} ${x.group || ''} ${x.dialer || ''} ${x.policy || ''} ${x.network || ''}`);
+    const items = filterList(state.traffic || [], state.filters.traffic, x => `${x.domain || ''} ${x.outbound || ''} ${x.dialer || ''} ${x.policy || ''} ${x.network || ''}`);
     setHTML(els.trafficTable, items.length ? items.map(r => `
       <tr>
+        <td>${r.time ? new Date(r.time).toLocaleString() : '--'}</td>
         <td>${escapeHtml(r.domain || '--')}</td>
-        <td>${escapeHtml(r.dns || '--')}</td>
         <td>${escapeHtml(r.outbound || '--')}</td>
         <td>${escapeHtml(r.dialer || '--')}</td>
         <td>${escapeHtml(r.policy || '--')}</td>
