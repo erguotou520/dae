@@ -8,12 +8,15 @@ package outbound
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/daeuniverse/dae/component/outbound/dialer"
 	"github.com/daeuniverse/dae/pkg/config_parser"
 	"github.com/dlclark/regexp2"
 	"github.com/sirupsen/logrus"
 )
+
+const dialerCreateTimeout = 3 * time.Second
 
 const (
 	FilterInput_Name            = "name"
@@ -42,7 +45,7 @@ func NewDialerSetFromLinks(option *dialer.GlobalOption, tagToNodeList map[string
 	}
 	for subscriptionTag, nodes := range tagToNodeList {
 		for _, node := range nodes {
-			d, err := dialer.NewFromLink(option, dialer.InstanceOption{DisableCheck: false}, node, subscriptionTag)
+			d, err := newDialerWithTimeout(option, node, subscriptionTag)
 			if err != nil {
 				s.log.Infof("failed to parse node: %v", err)
 				continue
@@ -52,6 +55,26 @@ func NewDialerSetFromLinks(option *dialer.GlobalOption, tagToNodeList map[string
 		}
 	}
 	return s
+}
+
+func newDialerWithTimeout(option *dialer.GlobalOption, node string, subscriptionTag string) (*dialer.Dialer, error) {
+	type result struct {
+		d   *dialer.Dialer
+		err error
+	}
+
+	done := make(chan result, 1)
+	go func() {
+		d, err := dialer.NewFromLink(option, dialer.InstanceOption{DisableCheck: false}, node, subscriptionTag)
+		done <- result{d: d, err: err}
+	}()
+
+	select {
+	case res := <-done:
+		return res.d, res.err
+	case <-time.After(dialerCreateTimeout):
+		return nil, fmt.Errorf("create node timed out after %v", dialerCreateTimeout)
+	}
 }
 
 func (s *DialerSet) filterHit(dialer *dialer.Dialer, filters []*config_parser.Function) (hit bool, err error) {

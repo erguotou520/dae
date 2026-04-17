@@ -1039,7 +1039,7 @@
       const net = nets[0] || {};
       const current = net.current_dialer || '--';
       const selectedNode = current !== '--' ? nodeMap.get(current) : null;
-      const relatedGroups = selectedNode && Array.isArray(selectedNode.groups) && selectedNode.groups.length ? selectedNode.groups : ['node'];
+      const subscriptionTag = selectedNode && selectedNode.subscription_tag ? selectedNode.subscription_tag : 'node';
       return `
         <div class="group-card">
           <span class="tag group-type-badge">${escapeHtml(net.network_type || '--')}</span>
@@ -1050,8 +1050,8 @@
           <div class="group-meta">
             <span>${escapeHtml(current)}</span>
             <span class="group-meta-groups">
-              <span class="tag">所属</span>
-              ${relatedGroups.map(name => `<span class="tag">${escapeHtml(name)}</span>`).join('')}
+              <span class="tag">订阅</span>
+              <span class="tag">${escapeHtml(subscriptionTag)}</span>
             </span>
             ${latencySpan(net.current_latency_ms)}
           </div>
