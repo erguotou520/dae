@@ -46,6 +46,10 @@ type AliveDialerSet struct {
 
 	selectionPolicy consts.DialerSelectionPolicy
 	minLatency      minLatency
+
+	// Log rate limiting: suppress duplicate state transition logs within a cooldown window.
+	lastStateLog   map[string]time.Time // "dialerPtr:state" -> last log time
+	stateLogCoolMu sync.Mutex
 }
 
 func NewAliveDialerSet(
@@ -82,6 +86,7 @@ func NewAliveDialerSet(
 			// Initiate the latency with a very big value.
 			sortingLatency: time.Hour,
 		},
+		lastStateLog: make(map[string]time.Time),
 	}
 	for _, d := range dialers {
 		a.dialerToIndex[d] = -Init
@@ -140,6 +145,23 @@ func (a *AliveDialerSet) printLatencies() {
 	a.log.Infoln(strings.TrimSuffix(builder.String(), "\n"))
 }
 
+// shouldLogStateChange implements log rate limiting for dialer state transitions.
+// Returns true if the log should be emitted, false if suppressed.
+// Key format: "dialerPtr:aliveState", cooldown: 5 minutes.
+const stateLogCooldown = 5 * time.Minute
+
+func (a *AliveDialerSet) shouldLogStateChange(dialer *Dialer, alive bool) bool {
+	key := fmt.Sprintf("%p:%v", dialer, alive)
+	a.stateLogCoolMu.Lock()
+	defer a.stateLogCoolMu.Unlock()
+	now := time.Now()
+	if last, ok := a.lastStateLog[key]; ok && now.Sub(last) < stateLogCooldown {
+		return false
+	}
+	a.lastStateLog[key] = now
+	return true
+}
+
 // NotifyLatencyChange should be invoked when dialer every time latency and alive state changes.
 func (a *AliveDialerSet) NotifyLatencyChange(dialer *Dialer, alive bool) {
 	a.mu.Lock()
@@ -171,10 +193,12 @@ func (a *AliveDialerSet) NotifyLatencyChange(dialer *Dialer, alive bool) {
 		} else {
 			// Dialer: not alive -> alive.
 			if index == -NotAlive {
-				a.log.WithFields(logrus.Fields{
-					"dialer": dialer.property.Name,
-					"group":  a.dialerGroupName,
-				}).Infof("[NOT ALIVE --%v-> ALIVE]", a.CheckTyp.String())
+				if a.shouldLogStateChange(dialer, true) {
+					a.log.WithFields(logrus.Fields{
+						"dialer": dialer.property.Name,
+						"group":  a.dialerGroupName,
+					}).Infof("[NOT ALIVE --%v-> ALIVE]", a.CheckTyp.String())
+				}
 			}
 			a.dialerToIndex[dialer] = len(a.inorderedAliveDialerSet)
 			a.inorderedAliveDialerSet = append(a.inorderedAliveDialerSet, dialer)
@@ -183,10 +207,12 @@ func (a *AliveDialerSet) NotifyLatencyChange(dialer *Dialer, alive bool) {
 		index := a.dialerToIndex[dialer]
 		if index >= 0 {
 			// Dialer: alive -> not alive.
-			a.log.WithFields(logrus.Fields{
-				"dialer": dialer.property.Name,
-				"group":  a.dialerGroupName,
-			}).Infof("[ALIVE --%v-> NOT ALIVE]", a.CheckTyp.String())
+			if a.shouldLogStateChange(dialer, false) {
+				a.log.WithFields(logrus.Fields{
+					"dialer": dialer.property.Name,
+					"group":  a.dialerGroupName,
+				}).Infof("[ALIVE --%v-> NOT ALIVE]", a.CheckTyp.String())
+			}
 			// Remove the dialer from inorderedAliveDialerSet.
 			if index >= len(a.inorderedAliveDialerSet) {
 				a.log.Panicf("index:%v >= len(a.inorderedAliveDialerSet):%v", index, len(a.inorderedAliveDialerSet))
@@ -254,15 +280,17 @@ func (a *AliveDialerSet) NotifyLatencyChange(dialer *Dialer, alive bool) {
 				}).Infof("Group %vselects dialer", re)
 
 				a.printLatencies()
-			} else {
-				// Alive -> not alive
-				defer a.aliveChangeCallback(false)
-				a.log.WithFields(logrus.Fields{
-					"group":   a.dialerGroupName,
-					"network": a.CheckTyp.String(),
-				}).Infof("Group has no dialer alive")
+					} else {
+						// Alive -> not alive
+						defer a.aliveChangeCallback(false)
+						if a.shouldLogStateChange(nil, false) {
+							a.log.WithFields(logrus.Fields{
+								"group":   a.dialerGroupName,
+								"network": a.CheckTyp.String(),
+							}).Infof("Group has no dialer alive")
+						}
+					}
 			}
-		}
 	} else {
 		if alive && minPolicy && a.minLatency.dialer == nil {
 			// Use first dialer if no dialer has alive state (usually happen at the very beginning).

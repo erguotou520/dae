@@ -55,10 +55,11 @@ func (t *NetworkType) StringWithoutDns() string {
 
 type collection struct {
 	// AliveDialerSetSet uses reference counting.
-	AliveDialerSetSet AliveDialerSetSet
-	Latencies10       *LatenciesN
-	MovingAverage     time.Duration
-	Alive             bool
+	AliveDialerSetSet    AliveDialerSetSet
+	Latencies10          *LatenciesN
+	MovingAverage        time.Duration
+	Alive                bool
+	ConsecutiveFailures  uint
 }
 
 func newCollection() *collection {
@@ -282,6 +283,7 @@ func (d *Dialer) ActivateCheck() {
 
 func (d *Dialer) aliveBackground() {
 	cycle := d.CheckInterval
+	const maxBackoffFactor = 10 // Max backoff: cycle * 10
 	var tcpSomark uint32
 	var mptcp bool
 	if network, err := netproxy.ParseMagicNetwork(d.TcpCheckOptionRaw.ResolverNetwork); err == nil {
@@ -426,13 +428,23 @@ func (d *Dialer) aliveBackground() {
 			return d.DnsCheck(ctx, netip.AddrPortFrom(opt.Ip6, opt.DnsPort), udpNetwork)
 		},
 	}
-	var CheckOpts = []*CheckOption{
-		tcp4CheckOpt,
-		tcp6CheckOpt,
-		udp4CheckDnsOpt,
-		udp6CheckDnsOpt,
-		tcp4CheckDnsOpt,
-		tcp6CheckDnsOpt,
+
+	var CheckOpts []*CheckOption
+	if d.DisableCheckIpv6 {
+		CheckOpts = []*CheckOption{
+			tcp4CheckOpt,
+			udp4CheckDnsOpt,
+			tcp4CheckDnsOpt,
+		}
+	} else {
+		CheckOpts = []*CheckOption{
+			tcp4CheckOpt,
+			tcp6CheckOpt,
+			udp4CheckDnsOpt,
+			udp6CheckDnsOpt,
+			tcp4CheckDnsOpt,
+			tcp6CheckDnsOpt,
+		}
 	}
 
 	ctx, cancel := context.WithCancel(d.ctx)
@@ -465,8 +477,12 @@ func (d *Dialer) aliveBackground() {
 			Traceln("cleaned up due to unused")
 		return
 	}
+
+	// Track consecutive full-failure cycles for exponential backoff.
+	var consecutiveFailures uint
 	var wg sync.WaitGroup
 	for range d.checkCh {
+		anyAlive := false
 		for _, opt := range CheckOpts {
 			// No need to test if there is no dialer selection policy using its latency.
 			if len(d.mustGetCollection(opt.networkType).AliveDialerSetSet) == 0 {
@@ -475,12 +491,35 @@ func (d *Dialer) aliveBackground() {
 
 			wg.Add(1)
 			go func(opt *CheckOption) {
-				_, _ = d.Check(opt)
+				if ok, _ := d.Check(opt); ok {
+					anyAlive = true
+				}
 				wg.Done()
 			}(opt)
 		}
 		// Wait to block the loop.
 		wg.Wait()
+
+		// Apply exponential backoff based on consecutive failure cycles.
+		if !anyAlive {
+			consecutiveFailures++
+			backoffFactor := uint(1) << consecutiveFailures
+			if backoffFactor > maxBackoffFactor {
+				backoffFactor = maxBackoffFactor
+			}
+			if backoffFactor > 1 {
+				d.tickerMu.Lock()
+				d.ticker.Reset(cycle * time.Duration(backoffFactor))
+				d.tickerMu.Unlock()
+			}
+		} else {
+			if consecutiveFailures > 0 {
+				consecutiveFailures = 0
+				d.tickerMu.Lock()
+				d.ticker.Reset(cycle)
+				d.tickerMu.Unlock()
+			}
+		}
 	}
 }
 
@@ -580,6 +619,7 @@ func (d *Dialer) Check(opts *CheckOption) (ok bool, err error) {
 		avg, _ := collection.Latencies10.AvgLatency()
 		collection.MovingAverage = (collection.MovingAverage + latency) / 2
 		collection.Alive = true
+		collection.ConsecutiveFailures = 0
 
 		d.Log.WithFields(logrus.Fields{
 			"network": opts.networkType.String(),
@@ -589,33 +629,39 @@ func (d *Dialer) Check(opts *CheckOption) (ok bool, err error) {
 			"mov_avg": collection.MovingAverage.Truncate(time.Millisecond),
 		}).Debugln("Connectivity Check")
 	} else {
-		// First check failed; wait briefly and retry once to avoid false negatives
-		// caused by transient network blips (e.g. PPPoE re-dial, route convergence).
-		select {
-		case <-ctx.Done():
-			// Parent context already expired, skip retry.
-		case <-time.After(2 * time.Second):
-			retryCtx, retryCancel := context.WithTimeout(context.TODO(), Timeout)
-			ok, err = opts.CheckFunc(retryCtx, opts.networkType)
-			retryCancel()
-			if ok && err == nil {
-				latency := time.Since(start)
-				collection.Latencies10.AppendLatency(latency)
-				avg, _ := collection.Latencies10.AvgLatency()
-				collection.MovingAverage = (collection.MovingAverage + latency) / 2
-				collection.Alive = true
+		// Skip retry if this network type has failed consecutively (>3 times)
+		// to avoid wasting 12+ seconds on nodes that are persistently down.
+		if collection.ConsecutiveFailures <= 3 {
+			// First check failed; wait briefly and retry once to avoid false negatives
+			// caused by transient network blips (e.g. PPPoE re-dial, route convergence).
+			select {
+			case <-ctx.Done():
+				// Parent context already expired, skip retry.
+			case <-time.After(2 * time.Second):
+				retryCtx, retryCancel := context.WithTimeout(context.TODO(), Timeout)
+				ok, err = opts.CheckFunc(retryCtx, opts.networkType)
+				retryCancel()
+				if ok && err == nil {
+					latency := time.Since(start)
+					collection.Latencies10.AppendLatency(latency)
+					avg, _ := collection.Latencies10.AvgLatency()
+					collection.MovingAverage = (collection.MovingAverage + latency) / 2
+					collection.Alive = true
+					collection.ConsecutiveFailures = 0
 
-				d.Log.WithFields(logrus.Fields{
-					"network": opts.networkType.String(),
-					"node":    d.property.Name,
-					"last":    latency.Truncate(time.Millisecond).String(),
-					"avg_10":  avg.Truncate(time.Millisecond),
-					"mov_avg": collection.MovingAverage.Truncate(time.Millisecond),
-				}).Debugln("Connectivity Check (retry succeeded)")
-				d.informDialerGroupUpdate(collection)
-				return ok, err
+					d.Log.WithFields(logrus.Fields{
+						"network": opts.networkType.String(),
+						"node":    d.property.Name,
+						"last":    latency.Truncate(time.Millisecond).String(),
+						"avg_10":  avg.Truncate(time.Millisecond),
+						"mov_avg": collection.MovingAverage.Truncate(time.Millisecond),
+					}).Debugln("Connectivity Check (retry succeeded)")
+					d.informDialerGroupUpdate(collection)
+					return ok, err
+				}
 			}
 		}
+		collection.ConsecutiveFailures++
 		d.logUnavailable(collection, opts.networkType, err)
 	}
 	d.informDialerGroupUpdate(collection)

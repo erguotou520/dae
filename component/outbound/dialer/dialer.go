@@ -44,12 +44,13 @@ type Dialer struct {
 
 type GlobalOption struct {
 	D.ExtraOption
-	Log               *logrus.Logger
-	TcpCheckOptionRaw TcpCheckOptionRaw // Lazy parse
-	CheckDnsOptionRaw CheckDnsOptionRaw // Lazy parse
-	CheckInterval     time.Duration
-	CheckTolerance    time.Duration
-	CheckDnsTcp       bool
+	Log                *logrus.Logger
+	TcpCheckOptionRaw  TcpCheckOptionRaw // Lazy parse
+	CheckDnsOptionRaw  CheckDnsOptionRaw // Lazy parse
+	CheckInterval      time.Duration
+	CheckTolerance     time.Duration
+	CheckDnsTcp        bool
+	DisableCheckIpv6   bool
 }
 
 type InstanceOption struct {
@@ -82,6 +83,7 @@ func NewGlobalOption(global *config.Global, log *logrus.Logger) *GlobalOption {
 		CheckInterval:     global.CheckInterval,
 		CheckTolerance:    global.CheckTolerance,
 		CheckDnsTcp:       true,
+		DisableCheckIpv6:  global.DisableCheckIpv6,
 	}
 }
 
