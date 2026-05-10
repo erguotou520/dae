@@ -68,8 +68,11 @@ func (c *ControlPlane) handleConn(lConn net.Conn) (err error) {
 			strings.HasPrefix(err.Error(), "EOF"),
 			strings.HasSuffix(err.Error(), "connection reset by peer"),
 			strings.HasSuffix(err.Error(), "canceled by local with error code 0"),
-			strings.HasSuffix(err.Error(), "canceled by remote with error code 0"):
-			return nil // ignore
+			strings.HasSuffix(err.Error(), "canceled by remote with error code 0"),
+			strings.Contains(err.Error(), "websocket: close 1000"),
+			strings.Contains(err.Error(), "websocket: close 1005"),
+			strings.Contains(err.Error(), "read/write on closed pipe"):
+			return nil // ignore benign relay errors (normal connection close, websocket shutdown)
 		default:
 			return fmt.Errorf("handleTCP relay error: %w", err)
 		}

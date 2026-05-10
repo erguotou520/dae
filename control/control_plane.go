@@ -849,7 +849,14 @@ func (c *ControlPlane) Serve(readyChan chan<- bool, listener *Listener) (err err
 					realDst = pktDst
 				}
 				if e := c.handlePkt(udpConn, data, convergeSrc, common.ConvergeAddrPort(pktDst), common.ConvergeAddrPort(realDst), routingResult, false); e != nil {
-					c.log.Warnln("handlePkt:", e)
+					// Downgrade frequent benign errors to debug to avoid log noise.
+					errMsg := e.Error()
+					if strings.Contains(errMsg, "no alive dialer") ||
+						strings.Contains(errMsg, "use of closed network connection") {
+						c.log.Debugln("handlePkt:", e)
+					} else {
+						c.log.Warnln("handlePkt:", e)
+					}
 				}
 			})
 			// if d := time.Since(t); d > 100*time.Millisecond {
