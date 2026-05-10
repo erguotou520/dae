@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -482,7 +483,7 @@ func (d *Dialer) aliveBackground() {
 	var consecutiveFailures uint
 	var wg sync.WaitGroup
 	for range d.checkCh {
-		anyAlive := false
+		var anyAlive atomic.Bool
 		for _, opt := range CheckOpts {
 			// No need to test if there is no dialer selection policy using its latency.
 			if len(d.mustGetCollection(opt.networkType).AliveDialerSetSet) == 0 {
@@ -492,7 +493,7 @@ func (d *Dialer) aliveBackground() {
 			wg.Add(1)
 			go func(opt *CheckOption) {
 				if ok, _ := d.Check(opt); ok {
-					anyAlive = true
+					anyAlive.Store(true)
 				}
 				wg.Done()
 			}(opt)
@@ -501,25 +502,23 @@ func (d *Dialer) aliveBackground() {
 		wg.Wait()
 
 		// Apply exponential backoff based on consecutive failure cycles.
-		if !anyAlive {
-			consecutiveFailures++
-			backoffFactor := uint(1) << consecutiveFailures
-			if backoffFactor > maxBackoffFactor {
-				backoffFactor = maxBackoffFactor
-			}
-			if backoffFactor > 1 {
-				d.tickerMu.Lock()
-				d.ticker.Reset(cycle * time.Duration(backoffFactor))
-				d.tickerMu.Unlock()
-			}
-		} else {
-			if consecutiveFailures > 0 {
+		d.tickerMu.Lock()
+		if d.ticker != nil {
+			if !anyAlive.Load() {
+				consecutiveFailures++
+				backoffFactor := uint(1) << consecutiveFailures
+				if backoffFactor > maxBackoffFactor {
+					backoffFactor = maxBackoffFactor
+				}
+				if backoffFactor > 1 {
+					d.ticker.Reset(cycle * time.Duration(backoffFactor))
+				}
+			} else if consecutiveFailures > 0 {
 				consecutiveFailures = 0
-				d.tickerMu.Lock()
 				d.ticker.Reset(cycle)
-				d.tickerMu.Unlock()
 			}
 		}
+		d.tickerMu.Unlock()
 	}
 }
 
